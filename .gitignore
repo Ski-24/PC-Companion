@@ -1,0 +1,29 @@
+# ── .NET build output ────────────────────────────────────────────────
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+
+# ── IDE ──────────────────────────────────────────────────────────────
+.vs/
+.idea/
+*.DotSettings.user
+.vscode/
+
+# ── Runtime data ─────────────────────────────────────────────────────
+# The app writes real settings/logs to %LocalAppData%\PCCompanion, not here.
+/Logs/
+/Config/
+*.log
+
+# ── Legacy WinForms version ──────────────────────────────────────────
+# Pre-WPF backup kept locally; not part of the maintained app.
+/App/PCControlApp.winforms-backup/
+
+# ── Third-party tool not needed to build or run ──────────────────────
+# SoundVolumeView (NirSoft) was only used by the old PowerShell scripts;
+# its license restricts redistribution, so it's kept out of the repo.
+/Tools/SoundVolumeView/
+
+# ── Local-only helper output ─────────────────────────────────────────
+# install-to-programfiles.ps1 deploys to C:\Program Files (machine-specific).

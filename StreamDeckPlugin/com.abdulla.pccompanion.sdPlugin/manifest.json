@@ -1,0 +1,174 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+	"UUID": "com.abdulla.pccompanion",
+	"Name": "PC Companion",
+	"Version": "0.1.0.0",
+	"Author": "Abdulla",
+	"Description": "Trigger PC Companion controls (popup, Gopher360, audio switch, HDR, Auto HDR, couch mode) from your Stream Deck.",
+	"Category": "PC Companion",
+	"CategoryIcon": "imgs/plugin/category-icon",
+	"Icon": "imgs/plugin/marketplace",
+	"SDKVersion": 2,
+	"CodePath": "bin/plugin.js",
+	"Software": {
+		"MinimumVersion": "6.5"
+	},
+	"OS": [
+		{
+			"Platform": "windows",
+			"MinimumVersion": "10"
+		}
+	],
+	"Nodejs": {
+		"Version": "20",
+		"Debug": "enabled"
+	},
+	"Actions": [
+		{
+			"Name": "Show Popup",
+			"UUID": "com.abdulla.pccompanion.show-popup",
+			"Icon": "imgs/actions/show-popup/icon",
+			"Tooltip": "Show the PC Companion popup",
+			"Controllers": ["Keypad"],
+			"PropertyInspectorPath": "ui/exe-path.html",
+			"States": [
+				{
+					"Image": "imgs/actions/show-popup/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Toggle Gopher360",
+			"UUID": "com.abdulla.pccompanion.toggle-gopher",
+			"Icon": "imgs/actions/toggle-gopher/icon",
+			"Tooltip": "Toggle Gopher360 controller-to-mouse on/off",
+			"Controllers": ["Keypad"],
+			"PropertyInspectorPath": "ui/exe-path.html",
+			"States": [
+				{
+					"Image": "imgs/actions/toggle-gopher/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Switch Audio",
+			"UUID": "com.abdulla.pccompanion.switch-audio",
+			"Icon": "imgs/actions/switch-audio/icon",
+			"Tooltip": "Switch the default audio output device",
+			"Controllers": ["Keypad"],
+			"PropertyInspectorPath": "ui/exe-path.html",
+			"States": [
+				{
+					"Image": "imgs/actions/switch-audio/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Prayer",
+			"UUID": "com.abdulla.pccompanion.prayer",
+			"Icon": "imgs/actions/prayer/icon",
+			"Tooltip": "Show the next prayer and countdown",
+			"Controllers": ["Keypad"],
+			"PropertyInspectorPath": "ui/exe-path.html",
+			"States": [
+				{
+					"Image": "imgs/actions/prayer/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Toggle HDR",
+			"UUID": "com.abdulla.pccompanion.toggle-hdr",
+			"Icon": "imgs/actions/toggle-hdr/icon",
+			"Tooltip": "Toggle HDR on the display",
+			"Controllers": ["Keypad"],
+			"PropertyInspectorPath": "ui/exe-path.html",
+			"States": [
+				{
+					"Image": "imgs/actions/toggle-hdr/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Toggle Auto HDR",
+			"UUID": "com.abdulla.pccompanion.toggle-auto-hdr",
+			"Icon": "imgs/actions/toggle-auto-hdr/icon",
+			"Tooltip": "Toggle Windows Auto HDR",
+			"Controllers": ["Keypad"],
+			"PropertyInspectorPath": "ui/exe-path.html",
+			"States": [
+				{
+					"Image": "imgs/actions/toggle-auto-hdr/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Display Brightness Dial",
+			"UUID": "com.abdulla.pccompanion.dial-brightness",
+			"Icon": "imgs/actions/dial-brightness/icon",
+			"Tooltip": "Adjust display brightness with a Stream Deck + dial",
+			"Controllers": ["Encoder"],
+			"PropertyInspectorPath": "ui/exe-path.html",
+			"States": [
+				{
+					"Image": "imgs/actions/dial-brightness/key",
+					"TitleAlignment": "bottom"
+				}
+			],
+			"Encoder": {
+				"layout": "$B1"
+			}
+		},
+		{
+			"Name": "SDR Balance Dial",
+			"UUID": "com.abdulla.pccompanion.dial-sdr",
+			"Icon": "imgs/actions/dial-sdr/icon",
+			"Tooltip": "Adjust HDR SDR balance with a Stream Deck + dial",
+			"Controllers": ["Encoder"],
+			"PropertyInspectorPath": "ui/exe-path.html",
+			"States": [
+				{
+					"Image": "imgs/actions/dial-sdr/key",
+					"TitleAlignment": "bottom"
+				}
+			],
+			"Encoder": {
+				"layout": "$B1"
+			}
+		},
+		{
+			"Name": "Toggle Couch Mode",
+			"UUID": "com.abdulla.pccompanion.toggle-couch-mode",
+			"Icon": "imgs/actions/toggle-couch-mode/icon",
+			"Tooltip": "Toggle couch mode",
+			"Controllers": ["Keypad"],
+			"PropertyInspectorPath": "ui/exe-path.html",
+			"States": [
+				{
+					"Image": "imgs/actions/toggle-couch-mode/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		},
+		{
+			"Name": "Toggle Morning Mode",
+			"UUID": "com.abdulla.pccompanion.toggle-morning-mode",
+			"Icon": "imgs/actions/toggle-morning-mode/icon",
+			"Tooltip": "Toggle morning mode",
+			"Controllers": ["Keypad"],
+			"PropertyInspectorPath": "ui/exe-path.html",
+			"States": [
+				{
+					"Image": "imgs/actions/toggle-morning-mode/key",
+					"TitleAlignment": "bottom"
+				}
+			]
+		}
+	]
+}

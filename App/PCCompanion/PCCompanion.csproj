@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>PCCompanion</RootNamespace>
+    <AssemblyName>PCCompanion</AssemblyName>
+    <ApplicationIcon>..\..\Icons\pccontrol.ico</ApplicationIcon>
+    <!-- single-file publish: dotnet publish -r win-x64 -p:PublishSingleFile=true -->
+    <PublishSingleFile>true</PublishSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- Gopher360 and icon embedded so the published EXE needs no external files -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\Tools\Gopher360\Gopher.exe">
+      <LogicalName>Gopher.exe</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\Tools\Gopher360\config.ini">
+      <LogicalName>Gopher.config.ini</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\Icons\pccontrol.ico">
+      <LogicalName>pccontrol.ico</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,25 @@
+{
+	"name": "com.abdulla.pccompanion",
+	"version": "0.1.0.0",
+	"description": "Control PC Companion (HDR, Auto HDR, Gopher360, audio, couch mode, popup) from Stream Deck.",
+	"type": "module",
+	"scripts": {
+		"build": "rollup -c",
+		"watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.abdulla.pccompanion\""
+	},
+	"dependencies": {
+		"@elgato/streamdeck": "^2.0.0"
+	},
+	"devDependencies": {
+		"@elgato/cli": "^1.0.0",
+		"@rollup/plugin-commonjs": "^28.0.0",
+		"@rollup/plugin-node-resolve": "^15.0.0",
+		"@rollup/plugin-terser": "^0.4.4",
+		"@rollup/plugin-typescript": "^12.0.0",
+		"@tsconfig/node20": "^20.0.0",
+		"@types/node": "20.x",
+		"rollup": "^4.0.0",
+		"tslib": "^2.0.0",
+		"typescript": "^5.0.0"
+	}
+}

@@ -1,0 +1,66 @@
+<Application xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PCCompanion.App">
+    <Application.Resources>
+        <!-- Ocean theme (default) — replaced at runtime on theme change -->
+        <SolidColorBrush x:Key="BgBrush"   Color="#111820"/>
+        <SolidColorBrush x:Key="CardBrush" Color="#1A222D"/>
+        <SolidColorBrush x:Key="BtnBrush"  Color="#2A3240"/>
+        <SolidColorBrush x:Key="DimBrush"  Color="#6B7A8D"/>
+        <SolidColorBrush x:Key="TextBrush" Color="White"/>
+        <SolidColorBrush x:Key="GoodBrush"   Color="#A8FFB8"/>
+        <SolidColorBrush x:Key="BadBrush"    Color="#FF7979"/>
+        <SolidColorBrush x:Key="StrokeBrush" Color="Transparent"/>
+        <!-- Fixed accent colors (never change with theme) -->
+        <SolidColorBrush x:Key="PurpBrush"  Color="#C49AFF"/>
+        <SolidColorBrush x:Key="BlueBrush"  Color="#75D8FF"/>
+        <SolidColorBrush x:Key="AmberBrush" Color="#FFD580"/>
+
+        <!-- Slim horizontal slider used for brightness and SDR balance -->
+        <Style x:Key="ThinSlider" TargetType="Slider">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Height="22" VerticalAlignment="Center">
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Height="6" CornerRadius="3"
+                                                        Background="{DynamicResource GoodBrush}"
+                                                        VerticalAlignment="Center"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Focusable="False" Width="18" Height="18">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Ellipse Width="18" Height="18"
+                                                         Fill="{DynamicResource TextBrush}"
+                                                         VerticalAlignment="Center"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Height="6" CornerRadius="3"
+                                                        Background="{DynamicResource BtnBrush}"
+                                                        VerticalAlignment="Center"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
+</Application>
