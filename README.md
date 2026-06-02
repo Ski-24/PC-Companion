@@ -1,8 +1,8 @@
 # PC Companion
 
-[![Latest release](https://img.shields.io/github/v/release/Ski-24/PC-Companion?display_name=tag&sort=semver)](https://github.com/Ski-24/PC-Companion/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/Ski-24/PC-Companion/total)](https://github.com/Ski-24/PC-Companion/releases)
-[![Commits since latest release](https://img.shields.io/github/commits-since/Ski-24/PC-Companion/latest)](https://github.com/Ski-24/PC-Companion/commits/main)
+[![Latest release](https://img.shields.io/github/v/release/Ski-24/PC-Companion?display_name=tag&sort=semver&cacheSeconds=600)](https://github.com/Ski-24/PC-Companion/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/Ski-24/PC-Companion/total?cacheSeconds=600)](https://github.com/Ski-24/PC-Companion/releases)
+[![Commits since latest release](https://img.shields.io/github/commits-since/Ski-24/PC-Companion/latest?cacheSeconds=600)](https://github.com/Ski-24/PC-Companion/commits/main)
 [![Last commit](https://img.shields.io/github/last-commit/Ski-24/PC-Companion)](https://github.com/Ski-24/PC-Companion/commits/main)
 [![Repo size](https://img.shields.io/github/repo-size/Ski-24/PC-Companion)](https://github.com/Ski-24/PC-Companion)
 [![Top language](https://img.shields.io/github/languages/top/Ski-24/PC-Companion)](https://github.com/Ski-24/PC-Companion)
