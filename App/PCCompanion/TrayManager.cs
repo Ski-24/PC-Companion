@@ -9,6 +9,7 @@ sealed class TrayManager : IDisposable
     private readonly PopupWindow _popup;
     private bool _suppressShow;
     private DiagnosticsWindow? _diag;
+    private UpdateService.UpdateInfo? _pendingUpdate;   // set when a startup check finds one
 
     public TrayManager(PopupWindow popup)
     {
@@ -22,14 +23,71 @@ sealed class TrayManager : IDisposable
             Icon    = LoadIcon(),
         };
         _tray.MouseClick += OnTrayClick;
+        _tray.BalloonTipClicked += OnUpdateBalloonClicked;
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open PC Companion",   null, (_, _) => OpenPopup());
         menu.Items.Add("Diagnostics / About", null, (_, _) => OpenDiagnostics());
+        menu.Items.Add("Check for Updates…",  null, (_, _) => CheckForUpdates(interactive: true));
         menu.Items.Add("Open Logs Folder",    null, (_, _) => OpenLogsFolder());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit",                null, (_, _) => System.Windows.Application.Current.Shutdown());
         _tray.ContextMenuStrip = menu;
+    }
+
+    // Background check at startup: silent if up-to-date or offline, a tray balloon if an
+    // update is available (clicking it starts the one-click install).
+    public void StartupUpdateCheck() => CheckForUpdates(interactive: false);
+
+    // interactive (menu) → always report the outcome and prompt immediately.
+    // non-interactive (startup) → only surface a balloon when an update exists.
+    private async void CheckForUpdates(bool interactive)
+    {
+        UpdateService.CheckResult result;
+        try { result = await UpdateService.CheckAsync(); }
+        catch (Exception ex) { Logger.Log($"CheckForUpdates: {ex.Message}"); return; }
+
+        switch (result.Status)
+        {
+            case UpdateService.Status.UpdateAvailable:
+                if (interactive)
+                {
+                    await UpdateService.ConfirmDownloadInstallAsync(result.Info!, null,
+                        s => _tray.Text = "PC Companion — " + s);
+                }
+                else
+                {
+                    _pendingUpdate = result.Info;
+                    _tray.BalloonTipTitle = "PC Companion update available";
+                    _tray.BalloonTipText  = $"Version {result.Info!.Tag} is ready. Click to install.";
+                    _tray.ShowBalloonTip(8000);
+                }
+                break;
+
+            case UpdateService.Status.UpToDate:
+                if (interactive)
+                    System.Windows.MessageBox.Show(
+                        $"You're on the latest version (v{UpdateService.CurrentVersion}).",
+                        "PC Companion", System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Information);
+                break;
+
+            default:
+                if (interactive)
+                    System.Windows.MessageBox.Show(
+                        "Couldn't check for updates.\n\n" + (result.Error ?? "Unknown error"),
+                        "PC Companion", System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Warning);
+                break;
+        }
+    }
+
+    private async void OnUpdateBalloonClicked(object? sender, EventArgs e)
+    {
+        if (_pendingUpdate is null) return;
+        var info = _pendingUpdate;
+        await UpdateService.ConfirmDownloadInstallAsync(info, null,
+            s => _tray.Text = "PC Companion — " + s);
     }
 
     // Right-click menu actions (run on the UI thread — NotifyIcon events fire there).

@@ -32,9 +32,15 @@
             <!-- Header (drag to move) -->
             <Grid Grid.Row="0" Background="Transparent" Margin="20,16,14,6"
                   MouseLeftButtonDown="OnHeaderDrag">
-                <TextBlock Text="Diagnostics / About"
-                           FontFamily="Segoe UI" FontSize="18" FontWeight="Bold"
-                           Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Diagnostics / About"
+                               FontFamily="Segoe UI" FontSize="18" FontWeight="Bold"
+                               Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="VersionText" Text=""
+                               Margin="10,0,0,0"
+                               FontFamily="Segoe UI" FontSize="13"
+                               Foreground="{DynamicResource DimBrush}" VerticalAlignment="Bottom"/>
+                </StackPanel>
                 <Border Width="28" Height="28" CornerRadius="14"
                         HorizontalAlignment="Right" VerticalAlignment="Center"
                         Background="{DynamicResource BtnBrush}" Cursor="Hand"
@@ -128,6 +134,11 @@
                 </Border>
                 <Border Style="{StaticResource DiagButton}" MouseLeftButtonDown="OnReset">
                     <TextBlock Text="Reset Settings" Margin="14,0" FontFamily="Segoe UI" FontSize="12"
+                               Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"/>
+                </Border>
+                <Border x:Name="CheckUpdatesBtn" Style="{StaticResource DiagButton}" MouseLeftButtonDown="OnCheckUpdates">
+                    <TextBlock x:Name="CheckUpdatesText" Text="Check for Updates" Margin="14,0"
+                               FontFamily="Segoe UI" FontSize="12"
                                Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"/>
                 </Border>
             </WrapPanel>

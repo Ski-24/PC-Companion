@@ -9,9 +9,12 @@ public partial class DiagnosticsWindow : Window
 {
     private List<DiagnosticsService.Row> _rows = new();
 
+    private bool _checking;
+
     public DiagnosticsWindow()
     {
         InitializeComponent();
+        VersionText.Text = "v" + UpdateService.CurrentVersion.ToString(3);
         // Gather off the UI thread (some probes touch DDC/CI, WMI, COM) so the window
         // shows instantly, then populate when ready.
         Loaded += (_, _) => GatherAndShow();
@@ -127,6 +130,47 @@ public partial class DiagnosticsWindow : Window
         {
             MessageBox.Show($"Could not reset settings: {ex.Message}",
                 "PC Companion", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void OnCheckUpdates(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (_checking) return;
+        _checking = true;
+        string original = CheckUpdatesText.Text;
+        CheckUpdatesText.Text = "Checking…";
+        try
+        {
+            var result = await UpdateService.CheckAsync();
+            switch (result.Status)
+            {
+                case UpdateService.Status.UpToDate:
+                    MessageBox.Show(this,
+                        $"You're on the latest version (v{UpdateService.CurrentVersion}).",
+                        "PC Companion", MessageBoxButton.OK, MessageBoxImage.Information);
+                    break;
+
+                case UpdateService.Status.UpdateAvailable:
+                    // ConfirmDownloadInstall handles the prompt, download (with progress text),
+                    // and silently launches the installer; the app then exits to update.
+                    await UpdateService.ConfirmDownloadInstallAsync(
+                        result.Info!, this, s => CheckUpdatesText.Text = s);
+                    break;
+
+                default:
+                    MessageBox.Show(this,
+                        "Couldn't check for updates.\n\n" + (result.Error ?? "Unknown error") +
+                        "\n\nCheck your internet connection and try again.",
+                        "PC Companion", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    break;
+            }
+        }
+        finally
+        {
+            // If the update launched, the app is shutting down and this is moot; otherwise restore.
+            CheckUpdatesText.Text = original;
+            _checking = false;
         }
     }
 

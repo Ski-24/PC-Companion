@@ -89,6 +89,11 @@ public partial class App
 
         Logger.Log("PC Companion started.");
 
+        // Quietly check GitHub for a newer release a few seconds after startup (so launch
+        // isn't slowed / network isn't hit immediately). Surfaces a tray balloon if found.
+        Task.Delay(TimeSpan.FromSeconds(4)).ContinueWith(_ =>
+            Dispatcher.BeginInvoke(new Action(() => _tray?.StartupUpdateCheck())));
+
         // Honor this launch's own intent.
         if (command is not null)
             Dispatcher.BeginInvoke(new Action(async () => await _popup.HandleCommand(command)));

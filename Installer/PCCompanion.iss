@@ -13,7 +13,7 @@
 ; ============================================================================
 
 #define MyAppName        "PC Companion"
-#define MyAppVersion     "1.0.1"
+#define MyAppVersion     "1.0.2"
 #define MyAppPublisher   "Abdulla"
 #define MyAppExeName     "PCCompanion.exe"
 #define RepoRoot         "C:\PC-Control-App"
@@ -84,6 +84,11 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 ; Offer to launch right after install (normal launch so the user sees it works).
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName} now"; \
     Flags: nowait postinstall skipifsilent
+; Silent (in-app auto-update) path: relaunch straight into the tray so the app comes back
+; on its own after UpdateService runs the installer with /VERYSILENT. WizardSilent gates
+; this to silent runs only, so it never double-launches during a normal interactive install.
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--startup"; \
+    Flags: nowait; Check: WizardSilent
 
 [Code]
 var
