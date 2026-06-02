@@ -12,6 +12,10 @@ A lightweight Windows system-tray companion app (WPF, .NET 8). Left-click the tr
 to open a popup that anchors above the taskbar, with four feature cards plus two one-tap
 "scene" buttons — and an optional Stream Deck plugin to drive it all from your deck.
 
+<p align="center">
+  <img src="docs/screenshots/popup.png" alt="PC Companion tray popup" width="380">
+</p>
+
 ## Features
 
 Every card has an in-app **( ? ) Help** button; the descriptions below mirror it.
@@ -45,7 +49,15 @@ Every card has an in-app **( ? ) Help** button; the descriptions below mirror it
   stays in a dimmed **"Setup"** state until you configure it in **Settings**.
 
 The popup anchors to the bottom-right of the current monitor's work area and scrolls
-internally on small / high-DPI displays.
+internally on small / high-DPI displays. Everything is configured in the popup's own
+collapsible **Settings** — audio devices, theme, prayer location/method, display toggles,
+and the Couch/Morning scenes:
+
+<p align="center">
+  <img src="docs/screenshots/settings-overview.png" alt="Settings menu" width="46%">
+  &nbsp;
+  <img src="docs/screenshots/settings-detail.png" alt="Settings expanded" width="46%">
+</p>
 
 ## Download & install
 
@@ -76,6 +88,10 @@ default (it asks before removing your config or any Stream Deck files it install
 The optional plugin is a **controller layer** — it doesn't replace the app; it calls the
 installed `PCCompanion.exe` so the app remains the single backend that actually does the
 work (HDR, audio, Gopher360, modes…). Keys show live status read from the app.
+
+<p align="center">
+  <img src="docs/screenshots/streamdeck.png" alt="PC Companion actions on a Stream Deck" width="430">
+</p>
 
 - **Keypad actions:** Show Popup, Toggle Gopher360, Switch Audio, Prayer, Toggle HDR,
   Toggle Auto HDR, Toggle Couch Mode, Toggle Morning Mode
