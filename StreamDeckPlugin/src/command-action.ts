@@ -1,11 +1,26 @@
 import { KeyAction, KeyDownEvent, SingletonAction, WillAppearEvent, WillDisappearEvent } from "@elgato/streamdeck";
 import streamDeck from "@elgato/streamdeck";
 import { spawn } from "node:child_process";
-import { watch } from "node:fs";
+import { existsSync, watch } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-export const DEFAULT_EXE = "C:\\PC-Control-App\\App\\PCCompanion\\bin\\Debug\\net8.0-windows\\PCCompanion.exe";
+// The installed PC Companion lives in the per-user install dir "PC Companion" (with a
+// space); the binary itself is PCCompanion.exe (no space — see <AssemblyName>). This is
+// the only location the shipped plugin should assume. (Note the app's *data* dir is the
+// separate "PCCompanion" folder used for status.json below.)
+export const DEFAULT_EXE = join(process.env.LOCALAPPDATA ?? "", "PC Companion", "PCCompanion.exe");
+
+// Old saved action settings may still point at a dev tree (Debug/Release/source/publish).
+// Treat those — and any path that no longer exists — as invalid and fall back to the
+// installed default, so existing Stream Deck profiles self-heal after install.
+const DEV_PATH_RE = /[\\/](?:bin[\\/](?:Debug|Release)|PC-Control-App|publish)[\\/]/i;
+
+export function resolveExe(savedPath?: string): string {
+	const trimmed = savedPath?.trim();
+	if (trimmed && !DEV_PATH_RE.test(trimmed) && existsSync(trimmed)) return trimmed;
+	return DEFAULT_EXE;
+}
 
 export type CommandSettings = {
 	exePath?: string;
@@ -118,7 +133,7 @@ export abstract class CommandAction extends SingletonAction<CommandSettings> {
 	}
 
 	override async onKeyDown(ev: KeyDownEvent<CommandSettings>): Promise<void> {
-		const exe = ev.payload.settings.exePath?.trim() || DEFAULT_EXE;
+		const exe = resolveExe(ev.payload.settings.exePath);
 		await ev.action.setTitle("");
 		if (this.showPending) {
 			await ev.action.setImage(renderIcon(this.icon, this.label, { tone: "pending", stateText: "...", detailText: "" }));

@@ -32,6 +32,7 @@ class CouchModeConfig
     public string TargetAudioId      { get; set; } = "";
     public string TargetAudioLabel   { get; set; } = "";
 
+    public bool Configured { get; set; }                    // user has set this mode up in Settings
     public bool          Active { get; set; }               // currently in Couch Mode
     public SceneSnapshot? Saved { get; set; }               // state to restore on exit
 }
@@ -51,6 +52,7 @@ class MorningModeConfig
     public string TargetAudioId      { get; set; } = "";
     public string TargetAudioLabel   { get; set; } = "";
 
+    public bool Configured { get; set; }                    // user has set this mode up in Settings
     public bool          Active { get; set; }               // currently in Morning Mode
     public SceneSnapshot? Saved { get; set; }               // state to restore on exit
 }

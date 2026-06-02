@@ -1,7 +1,7 @@
 import { DialAction, DialDownEvent, DialRotateEvent, SingletonAction, WillAppearEvent, WillDisappearEvent } from "@elgato/streamdeck";
 import streamDeck from "@elgato/streamdeck";
 import { spawn } from "node:child_process";
-import { CommandSettings, DEFAULT_EXE, onStatusChanged, PcStatus, readStatus } from "./command-action";
+import { CommandSettings, onStatusChanged, PcStatus, readStatus, resolveExe } from "./command-action";
 
 const activeDials = new Set<BrightnessDialAction>();
 
@@ -94,7 +94,7 @@ export abstract class BrightnessDialAction extends SingletonAction<CommandSettin
 	}
 
 	private spawnCommand(exePath: string | undefined, command: string): void {
-		const exe = exePath?.trim() || DEFAULT_EXE;
+		const exe = resolveExe(exePath);
 		try {
 			const child = spawn(exe, [command], { detached: true, stdio: "ignore" });
 			child.on("error", (err) => streamDeck.logger.error(`Failed to launch PC Companion (${exe}) for ${command}`, err));
@@ -133,7 +133,7 @@ export abstract class BrightnessDialAction extends SingletonAction<CommandSettin
 		this.queuedExePath = undefined;
 		if (!command) return;
 
-		const exe = exePath?.trim() || DEFAULT_EXE;
+		const exe = resolveExe(exePath);
 		this.commandInFlight = true;
 		try {
 			const child = spawn(exe, [command], { stdio: "ignore" });

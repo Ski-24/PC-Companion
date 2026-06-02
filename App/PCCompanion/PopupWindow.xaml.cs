@@ -1025,12 +1025,28 @@ public partial class PopupWindow : Window
                AudioManager.Normalize(currentAudioName) == AudioManager.Normalize(target.Name);
     }
 
-    private void UpdateCouchButton()   => UpdateSceneStatus(CouchModeStatus,   AppSettings.Current.Couch.Active);
-    private void UpdateMorningButton() => UpdateSceneStatus(MorningModeStatus, AppSettings.Current.Morning.Active);
+    private void UpdateCouchButton()   => UpdateSceneStatus(CouchModeBtn,   CouchModeStatus,
+        AppSettings.Current.Couch.Active,   AppSettings.Current.Couch.Configured,   "Couch Mode");
+    private void UpdateMorningButton() => UpdateSceneStatus(MorningModeBtn, MorningModeStatus,
+        AppSettings.Current.Morning.Active, AppSettings.Current.Morning.Configured, "Morning Mode");
 
-    private static void UpdateSceneStatus(TextBlock status, bool active)
+    private static void UpdateSceneStatus(Border btn, TextBlock status, bool active, bool configured, string name)
     {
         var res = Application.Current.Resources;
+
+        // Not set up yet: dim the pill, show a "Setup" hint, and explain via tooltip.
+        // The toggle handlers refuse to run until the mode is configured in Settings.
+        if (!configured)
+        {
+            status.Text       = "Setup";
+            status.Foreground = (Brush)res["DimBrush"];
+            btn.Opacity       = 0.55;
+            btn.ToolTip       = $"Set up {name} in Settings first.";
+            return;
+        }
+
+        btn.Opacity       = 1.0;
+        btn.ToolTip       = null;
         status.Text       = active ? "ON" : "OFF";
         status.Foreground = active ? (Brush)res["GoodBrush"] : (Brush)res["BadBrush"];
     }
@@ -1055,6 +1071,12 @@ public partial class PopupWindow : Window
     // is hidden (only touches window-owned UI elements, never Activates/Shows).
     public async Task RunCouchToggle()
     {
+        if (!AppSettings.Current.Couch.Configured)  // not set up yet — leave the pill in its "Setup" state
+        {
+            Logger.Log("Couch Mode toggle ignored: not configured in Settings");
+            UpdateCouchButton();
+            return;
+        }
         if (_sceneInProgress) return;              // ignore re-entrancy / overlap with Morning
         _sceneInProgress  = true;
         _actionInProgress = true;                  // keep popup open during the toggle
@@ -1096,6 +1118,12 @@ public partial class PopupWindow : Window
     // Toggles Morning Mode on/off. Mirror of RunCouchToggle.
     public async Task RunMorningToggle()
     {
+        if (!AppSettings.Current.Morning.Configured)  // not set up yet — leave the pill in its "Setup" state
+        {
+            Logger.Log("Morning Mode toggle ignored: not configured in Settings");
+            UpdateMorningButton();
+            return;
+        }
         if (_sceneInProgress) return;
         _sceneInProgress  = true;
         _actionInProgress = true;
@@ -1280,6 +1308,7 @@ public partial class PopupWindow : Window
             case "Audio":      c.SwitchAudio          = !c.SwitchAudio;          break;
             case "SaveState":  c.SaveStateBeforeApply = !c.SaveStateBeforeApply; break;
         }
+        c.Configured = true;
         AppSettings.Current.Save();
         AppSettings.Invalidate();
         RefreshSettingsPanel();
@@ -1308,6 +1337,7 @@ public partial class PopupWindow : Window
         var cfg = AppSettings.Current;
         cfg.Couch.TargetAudioId    = dev.Id;
         cfg.Couch.TargetAudioLabel = dev.Name;
+        cfg.Couch.Configured       = true;
         cfg.Save();
         AppSettings.Invalidate();
         if (_couchAudioText is not null) _couchAudioText.Text = dev.Name;
@@ -1324,6 +1354,7 @@ public partial class PopupWindow : Window
             case "Audio":     m.SwitchAudio          = !m.SwitchAudio;          break;
             case "SaveState": m.SaveStateBeforeApply = !m.SaveStateBeforeApply; break;
         }
+        m.Configured = true;
         AppSettings.Current.Save();
         AppSettings.Invalidate();
         RefreshSettingsPanel();
@@ -1352,6 +1383,7 @@ public partial class PopupWindow : Window
         var cfg = AppSettings.Current;
         cfg.Morning.TargetAudioId    = dev.Id;
         cfg.Morning.TargetAudioLabel = dev.Name;
+        cfg.Morning.Configured       = true;
         cfg.Save();
         AppSettings.Invalidate();
         if (_morningAudioText is not null) _morningAudioText.Text = dev.Name;
@@ -1768,6 +1800,7 @@ public partial class PopupWindow : Window
             {
                 var cfg = AppSettings.Current;
                 cfg.Couch.TargetBrightness = (int)couchBrtSlider.Value;
+                cfg.Couch.Configured       = true;
                 cfg.Save();
                 AppSettings.Invalidate();
             };

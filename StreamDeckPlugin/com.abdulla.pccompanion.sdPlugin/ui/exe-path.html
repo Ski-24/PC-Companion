@@ -6,7 +6,7 @@
 	</head>
 	<body>
 		<sdpi-item label="PC Companion EXE">
-			<sdpi-file setting="exePath" accept=".exe" placeholder="Leave blank to use the default dev build"></sdpi-file>
+			<sdpi-file setting="exePath" accept=".exe" placeholder="Leave blank to use the installed PC Companion"></sdpi-file>
 		</sdpi-item>
 		<sdpi-item>
 			<sdpi-color disabled></sdpi-color>
@@ -14,9 +14,9 @@
 		<details>
 			<summary>About</summary>
 			<p>
-				Leave blank to use the default build at
-				<code>C:\PC-Control-App\App\PCCompanion\bin\Debug\net8.0-windows\PCCompanion.exe</code>.
-				Set this once a real installer exists.
+				Leave blank to use the installed app at
+				<code>%LOCALAPPDATA%\PC Companion\PCCompanion.exe</code>.
+				Only set a path here if you installed PC Companion somewhere else.
 			</p>
 		</details>
 	</body>
