@@ -907,7 +907,7 @@ public partial class PopupWindow : Window
         public bool ManageHdr;     public bool HdrOn;
         public bool ManageAutoHdr; public bool AutoHdrOn;
         public bool ManageBrightness; public int BrightnessTarget;
-        public bool ManageAudio;   public string AudioId = "";
+        public bool ManageAudio;   public string AudioId = ""; public string AudioLabel = "";
     }
 
     private static SceneSpec BuildCouchSpec(CouchModeConfig c) => new()
@@ -917,7 +917,7 @@ public partial class PopupWindow : Window
         ManageHdr    = c.ToggleHdr,    HdrOn    = false,   // Couch: HDR OFF
         ManageAutoHdr = false,
         ManageBrightness = c.SetBrightness, BrightnessTarget = c.TargetBrightness,
-        ManageAudio  = c.SwitchAudio,  AudioId  = c.TargetAudioId,
+        ManageAudio  = c.SwitchAudio,  AudioId  = c.TargetAudioId, AudioLabel = c.TargetAudioLabel,
     };
 
     private static SceneSpec BuildMorningSpec(MorningModeConfig m) => new()
@@ -927,7 +927,7 @@ public partial class PopupWindow : Window
         ManageHdr    = m.ManageHdr,    HdrOn    = true,    // Morning: HDR ON
         ManageAutoHdr = m.ManageAutoHdr, AutoHdrOn = true, // Morning: Auto HDR ON
         ManageBrightness = false,                          // Morning leaves brightness alone
-        ManageAudio  = m.SwitchAudio,  AudioId  = m.TargetAudioId,
+        ManageAudio  = m.SwitchAudio,  AudioId  = m.TargetAudioId, AudioLabel = m.TargetAudioLabel,
     };
 
     private static void RecalculateModeStatus(
@@ -1006,23 +1006,28 @@ public partial class PopupWindow : Window
             if (Math.Abs(brightness - spec.BrightnessTarget) > 2) return false;
         }
 
-        if (spec.ManageAudio && !string.IsNullOrEmpty(spec.AudioId) &&
-            !AudioTargetMatches(currentAudioId, currentAudioName, spec.AudioId))
+        if (spec.ManageAudio && (!string.IsNullOrEmpty(spec.AudioId) || !string.IsNullOrEmpty(spec.AudioLabel)) &&
+            !AudioTargetMatches(currentAudioId, currentAudioName, spec.AudioId, spec.AudioLabel))
             return false;
 
         return true;
     }
 
-    private static bool AudioTargetMatches(string currentAudioId, string currentAudioName, string targetAudioId)
+    private static bool AudioTargetMatches(string currentAudioId, string currentAudioName, string targetAudioId, string targetLabel)
     {
-        if (string.IsNullOrEmpty(targetAudioId)) return true;
-        if (currentAudioId == targetAudioId) return true;
+        if (string.IsNullOrEmpty(targetAudioId) && string.IsNullOrEmpty(targetLabel)) return true;
+        if (!string.IsNullOrEmpty(targetAudioId) && currentAudioId == targetAudioId) return true;
 
+        // Resolve the target's name from the live device list by ID; if the saved ID is
+        // stale (no longer a live endpoint) fall back to the saved label, so a switch that
+        // succeeded by name still counts as a match.
         var devices = AudioManager.GetRenderDevices();
         var target = devices.FirstOrDefault(d => d.Id == targetAudioId);
-        return !string.IsNullOrEmpty(target.Name) &&
+        string targetName = !string.IsNullOrEmpty(target.Name) ? target.Name : targetLabel;
+
+        return !string.IsNullOrEmpty(targetName) &&
                !string.IsNullOrEmpty(currentAudioName) &&
-               AudioManager.Normalize(currentAudioName) == AudioManager.Normalize(target.Name);
+               AudioManager.Normalize(currentAudioName) == AudioManager.Normalize(targetName);
     }
 
     private void UpdateCouchButton()   => UpdateSceneStatus(CouchModeBtn,   CouchModeStatus,
@@ -1207,8 +1212,8 @@ public partial class PopupWindow : Window
         if (spec.ManageAutoHdr)
             await SetAutoHdrState(spec.AutoHdrOn, spec.Name);
 
-        if (spec.ManageAudio && !string.IsNullOrEmpty(spec.AudioId))
-            await Task.Run(() => AudioManager.TrySetDefault(spec.AudioId));
+        if (spec.ManageAudio && (!string.IsNullOrEmpty(spec.AudioId) || !string.IsNullOrEmpty(spec.AudioLabel)))
+            await Task.Run(() => AudioManager.TrySetDefaultByIdOrName(spec.AudioId, spec.AudioLabel));
 
         return snap;
     }

@@ -157,6 +157,43 @@ static class AudioManager
         return GetCurrentDefaultId() == deviceId;
     }
 
+    // Switches the default render endpoint to a target identified by a saved ID and/or a
+    // friendly label, healing a stale saved ID by matching the active device list by
+    // normalized name — the same resilience SwitchToNext has. Scenes (Couch/Morning) store
+    // a TargetAudioId that can go stale across reconnects/driver updates/USB-instance
+    // renumbering, which made the plain-ID TrySetDefault throw and the scene silently fail.
+    // Returns the endpoint ID that actually became default, or null if none worked.
+    public static string? TrySetDefaultByIdOrName(string savedId, string label)
+    {
+        var devices = GetRenderDevices();
+
+        // Candidate order: the saved ID first (only if still a live endpoint), then any
+        // active endpoint whose normalized name matches the saved label.
+        var candidates = new List<string>();
+        if (!string.IsNullOrEmpty(savedId) && devices.Any(d => d.Id == savedId))
+            candidates.Add(savedId);
+        if (!string.IsNullOrEmpty(label))
+            foreach (var (id, name) in devices)
+                if (!candidates.Contains(id) && Norm(name) == Norm(label))
+                    candidates.Add(id);
+
+        if (candidates.Count == 0)
+        {
+            Logger.Log($"TrySetDefaultByIdOrName: no candidate for '{label}' [{Trunc(savedId)}]");
+            return null;
+        }
+
+        Logger.Log($"TrySetDefaultByIdOrName: → '{label}' ({candidates.Count} candidate(s))");
+        foreach (var id in candidates)
+        {
+            try { SetDefault(id); } catch (Exception ex) { Logger.Log($"  [{Trunc(id)}] threw: {ex.Message}"); continue; }
+            Thread.Sleep(120);
+            if (GetCurrentDefaultId() == id) { Logger.Log($"TrySetDefaultByIdOrName: switched to {label}"); return id; }
+        }
+        Logger.Log($"TrySetDefaultByIdOrName: no working endpoint for '{label}'");
+        return null;
+    }
+
     private static void SetDefault(string deviceId)
     {
         var client = (IPolicyConfig)new PolicyConfigCoClass();
