@@ -56,9 +56,9 @@ collapsible **Settings** — audio devices, theme, prayer location/method, displ
 and the Couch/Morning scenes:
 
 <p align="center">
-  <img src="docs/screenshots/settings-overview.png" alt="Settings menu" width="46%">
+  <img src="docs/screenshots/settings-overview.png" alt="Settings menu" height="520">
   &nbsp;
-  <img src="docs/screenshots/settings-detail.png" alt="Settings expanded" width="46%">
+  <img src="docs/screenshots/settings-detail.png" alt="Settings expanded" height="520">
 </p>
 
 ## Download & install
