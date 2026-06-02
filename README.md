@@ -14,13 +14,35 @@ to open a popup that anchors above the taskbar, with four feature cards plus two
 
 ## Features
 
-- **Gopher360** — toggle the Gopher360 gamepad-as-mouse driver on/off
-- **Audio** — switch the default playback device between two configured outputs
-- **Display** — HDR toggle, SDR-content brightness, Auto HDR, and monitor brightness (DDC/CI)
-- **Prayer Times** — next prayer name + countdown (offline-calculated, per-country presets)
-- **Couch / Morning modes** — two configurable "scenes" that apply a batch of the above
-  (e.g. Couch: Gopher on, HDR off, dim, switch audio) in one tap and restore on toggle-off.
-  Each button stays disabled until you set it up in **Settings** (it shows a "Setup" hint).
+Every card has an in-app **( ? ) Help** button; the descriptions below mirror it.
+
+- **Gopher360** — turn the Gopher360 driver on/off so your game controller acts as a
+  mouse/keyboard. Controls and cursor speed come from Gopher360's own `config.ini`; if the
+  cursor feels too fast or slow, tweak that config. (See the
+  [Gopher360 GitHub page](https://github.com/Tylemagne/Gopher360) for advanced controls.)
+
+- **Audio** — switches the Windows default playback device between your two configured
+  outputs. If switching stops working, a device's name probably changed (driver update,
+  reconnect, or a Windows rename) — just re-select the devices in **Settings**.
+
+- **Display** — the HDR / display card:
+  - **HDR** toggle and **Auto HDR** toggle.
+  - **Display Brightness** drives your monitor over **DDC/CI**. If it doesn't work: enable
+    DDC/CI in the monitor's own menu, turn **Eco Mode** off, and try disabling
+    G-Sync/FreeSync/VRR or ELMB/ULMB motion-blur reduction. Some docks/adapters block
+    DDC/CI entirely.
+  - **SDR Balance** adjusts SDR-content brightness while HDR is on. It's app-controlled and
+    may not *exactly* mirror the Windows Settings slider.
+
+- **Prayer Times** — next prayer name + live countdown, **calculated offline** as estimates.
+  The app computes prayer times internally and then applies your **iqama offsets**, so the
+  card shows the *iqama* time (not the adhan time). Adjust the offsets to match your local
+  mosque or timetable. Per-country calculation presets are included.
+
+- **Couch / Morning modes** — two configurable one-tap "scenes" that batch several actions
+  and restore them on toggle-off (e.g. **Couch**: Gopher on, HDR off, dim brightness, switch
+  audio; **Morning**: the wake-up counterpart). They're mutually exclusive, and each button
+  stays in a dimmed **"Setup"** state until you configure it in **Settings**.
 
 The popup anchors to the bottom-right of the current monitor's work area and scrolls
 internally on small / high-DPI displays.
@@ -29,7 +51,7 @@ internally on small / high-DPI displays.
 
 > **Most users want this section.** No SDK, no runtime, no admin rights.
 
-1. Download the latest **`PCCompanion-Setup-x.y.z.exe`** from the
+1. Download the latest **`PCCompanion-Setup-1.0.0.exe`** from the
    [**Releases**](https://github.com/Ski-24/PC-Companion/releases/latest) page.
 2. Run it. During setup you can tick:
    - **Create a desktop shortcut** (off by default)
