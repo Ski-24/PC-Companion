@@ -13,7 +13,9 @@ to open a popup that anchors above the taskbar, with four feature cards plus two
 "scene" buttons — and an optional Stream Deck plugin to drive it all from your deck.
 
 <p align="center">
-  <img src="docs/screenshots/popup.png" alt="PC Companion tray popup" width="380">
+  <img src="docs/screenshots/popup.png" alt="PC Companion popup" width="44%">
+  &nbsp;
+  <img src="docs/screenshots/popup-prayer.png" alt="PC Companion popup with the Prayer card enabled" width="44%">
 </p>
 
 ## Features
