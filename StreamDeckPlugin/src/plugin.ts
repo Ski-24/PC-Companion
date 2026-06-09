@@ -1,6 +1,6 @@
 import streamDeck from "@elgato/streamdeck";
 
-import { DialBrightness, DialSdr, Prayer, ShowPopup, SwitchAudio, ToggleAutoHdr, ToggleCouchMode, ToggleGopher, ToggleHdr, ToggleMorningMode } from "./actions";
+import { DialBrightness, DialDim, DialSdr, Prayer, ShowPopup, SwitchAudio, ToggleAutoHdr, ToggleCouchMode, ToggleGopher, ToggleHdr, ToggleMorningMode } from "./actions";
 
 streamDeck.actions.registerAction(new ShowPopup());
 streamDeck.actions.registerAction(new ToggleGopher());
@@ -12,5 +12,6 @@ streamDeck.actions.registerAction(new ToggleCouchMode());
 streamDeck.actions.registerAction(new ToggleMorningMode());
 streamDeck.actions.registerAction(new DialBrightness());
 streamDeck.actions.registerAction(new DialSdr());
+streamDeck.actions.registerAction(new DialDim());
 
 streamDeck.connect();

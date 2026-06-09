@@ -105,3 +105,28 @@ export class DialSdr extends BrightnessDialAction {
 			<path d="M36 16a20 20 0 0 1 0 40Z" fill="${this.accent}"/>`;
 	}
 }
+
+@action({ UUID: "com.abdulla.pccompanion.dial-dim" })
+export class DialDim extends BrightnessDialAction {
+	protected readonly label = "Dim";
+	protected readonly commandPrefix = "--set-dim=";
+	protected readonly step = 2;
+	protected readonly min = 0;
+	protected readonly max = 100;
+	protected readonly unit = "%";
+	protected readonly accent = "#9B8CFF";
+
+	protected valueFromStatus(status?: PcStatus): number {
+		return typeof status?.dim === "number" ? status.dim : 0;
+	}
+
+	// Software dim is an SDR-mode tool (HDR uses the SDR Balance dial instead).
+	protected canRotate(status?: PcStatus): boolean {
+		return status?.hdr !== true;
+	}
+
+	protected override glyphMarkup(): string {
+		// Crescent moon — "dim".
+		return `<path d="M44 8a28 28 0 1 0 18 50A22 22 0 0 1 44 8Z" fill="${this.accent}"/>`;
+	}
+}

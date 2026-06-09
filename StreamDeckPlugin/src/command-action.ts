@@ -38,6 +38,7 @@ export type PcStatus = {
 	device2?: string;
 	displayBrightness?: number | null;
 	sdrBrightness?: number;
+	dim?: number;
 	prayerStatus?: string;
 	prayerCountdown?: string;
 };

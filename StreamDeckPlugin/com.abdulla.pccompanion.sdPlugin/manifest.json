@@ -143,6 +143,23 @@
 			}
 		},
 		{
+			"Name": "Dim Dial",
+			"UUID": "com.abdulla.pccompanion.dial-dim",
+			"Icon": "imgs/actions/dial-dim/icon",
+			"Tooltip": "Dim the screen below the hardware brightness floor with a Stream Deck + dial",
+			"Controllers": ["Encoder"],
+			"PropertyInspectorPath": "ui/exe-path.html",
+			"States": [
+				{
+					"Image": "imgs/actions/dial-dim/key",
+					"TitleAlignment": "bottom"
+				}
+			],
+			"Encoder": {
+				"layout": "$B1"
+			}
+		},
+		{
 			"Name": "Toggle Couch Mode",
 			"UUID": "com.abdulla.pccompanion.toggle-couch-mode",
 			"Icon": "imgs/actions/toggle-couch-mode/icon",

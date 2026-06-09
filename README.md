@@ -39,6 +39,11 @@ Every card has an in-app **( ? ) Help** button; the descriptions below mirror it
     DDC/CI entirely.
   - **SDR Balance** adjusts SDR-content brightness while HDR is on. It's app-controlled and
     may not *exactly* mirror the Windows Settings slider.
+  - **Dim** — software dimming for going *darker than your monitor's backlight allows*. With
+    HDR off, drag **Display Brightness** down to **0** and a **Dim** slider appears; it lays a
+    click-through dark overlay across **all** your monitors. Raising brightness back above 0
+    (or turning HDR on) clears it. Great for late-night use when 0% hardware brightness is
+    still too bright. (Doesn't affect fullscreen-exclusive games, which bypass the desktop.)
 
 - **Prayer Times** — next prayer name + live countdown, **calculated offline** as estimates.
   The app computes prayer times internally and then applies your **iqama offsets**, so the
@@ -97,7 +102,8 @@ work (HDR, audio, Gopher360, modes…). Keys show live status read from the app.
 
 - **Keypad actions:** Show Popup, Toggle Gopher360, Switch Audio, Prayer, Toggle HDR,
   Toggle Auto HDR, Toggle Couch Mode, Toggle Morning Mode
-- **Stream Deck + dials:** Display Brightness, SDR Balance
+- **Stream Deck + dials:** Display Brightness, SDR Balance, Dim (software dim below the
+  hardware floor; rotate to set 0–100%, push to open the popup)
 
 **Install it** via the installer checkbox above (recommended). The installer copies the
 plugin to `%AppData%\Elgato\StreamDeck\Plugins\com.abdulla.pccompanion.sdPlugin`, detects

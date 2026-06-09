@@ -92,6 +92,18 @@ function Draw-Symbol($g, [string]$name, [float]$s, [string]$accent) {
 			$g.FillPie($b, $s*.30, $s*.30, $s*.40, $s*.40, -90, 180)
 			$b.Dispose()
 		}
+		"dial-dim" {
+			# Crescent moon: a filled disc with an offset disc punched out (transparent bg).
+			$b = Brush $accent
+			$path = New-Object System.Drawing.Drawing2D.GraphicsPath
+			$path.AddEllipse($s*.30, $s*.28, $s*.44, $s*.44)
+			$cut = New-Object System.Drawing.Drawing2D.GraphicsPath
+			$cut.AddEllipse($s*.42, $s*.24, $s*.42, $s*.42)
+			$region = New-Object System.Drawing.Region $path
+			$region.Exclude($cut)
+			$g.FillRegion($b, $region)
+			$region.Dispose(); $cut.Dispose(); $path.Dispose(); $b.Dispose()
+		}
 		"toggle-couch-mode" {
 			$g.DrawLine($p, $s*.28, $s*.44, $s*.72, $s*.44)
 			$g.DrawArc($p, $s*.21, $s*.34, $s*.18, $s*.22, 90, 180)
@@ -145,6 +157,7 @@ $actions = @{
 	"toggle-auto-hdr"     = @{ Label = "AUTO"; Accent = "#00D1FF" }
 	"dial-brightness"     = @{ Label = "BRT"; Accent = "#20D6FF" }
 	"dial-sdr"            = @{ Label = "SDR"; Accent = "#A8FFB8" }
+	"dial-dim"            = @{ Label = "DIM"; Accent = "#9B8CFF" }
 	"toggle-couch-mode"   = @{ Label = "COUCH"; Accent = "#FF5C5C" }
 	"toggle-morning-mode" = @{ Label = "MORN"; Accent = "#FFA94D" }
 }

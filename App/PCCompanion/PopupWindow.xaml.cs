@@ -295,6 +295,15 @@ public partial class PopupWindow : Window
             return;
         }
 
+        if (TryParseCommandValue(command, "--set-dim=", out double dimValue))
+        {
+            if (HdrDetector.IsEnabled()) return;   // software dim is SDR-mode only
+            bool popupShown = ShowPopupForCommand();
+            await ApplyDimValue(dimValue);
+            if (popupShown) StartAutoHide(CommandAutoHideDelay);
+            return;
+        }
+
         // Show first so the popup appears immediately; the action's own RefreshState
         // updates the status live. Start the timer after the command so long-running
         // actions still get a full confirmation window.
@@ -715,14 +724,11 @@ public partial class PopupWindow : Window
         }
         else
         {
-            // HDR off: show the Dim row whenever brightness is parked at 0; otherwise
-            // clear any active dim (brightness is the master control).
-            if (brt == 0) _dimRevealed = true;
-            else if (brt > 0)
-            {
-                _dimRevealed = false;
-                if (DimOverlay.Level > 0) DimOverlay.SetLevel(0);
-            }
+            // HDR off: the Dim row shows whenever brightness is at 0, OR an overlay is
+            // already active (e.g. set via the Stream Deck dim dial). Clearing on a
+            // brightness *raise* is handled in HandleBrightnessCommitted — NOT here — so a
+            // dial-set dim isn't wiped by a passive refresh.
+            _dimRevealed = brt == 0;
         }
 
         // Suppress slider events for ALL layout/visibility/value changes below ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â
@@ -869,6 +875,7 @@ public partial class PopupWindow : Window
                 device2 = cfg.Device2Label,
                 displayBrightness = brightness >= 0 ? brightness : (int?)null,
                 sdrBrightness = cfg.SdrBrightness,
+                dim = DimOverlay.Level,
                 prayerStatus = _latestPrayerStatus,
                 prayerCountdown = _latestPrayerCountdown,
             };
@@ -900,7 +907,7 @@ public partial class PopupWindow : Window
         catch (Exception ex) { Logger.Log($"WritePrayerStatusJson: {ex.Message}"); }
     }
 
-    private void WriteSliderStatusJson(int? displayBrightness = null, double? sdrBrightness = null)
+    private void WriteSliderStatusJson(int? displayBrightness = null, double? sdrBrightness = null, int? dim = null)
     {
         try
         {
@@ -918,6 +925,7 @@ public partial class PopupWindow : Window
             status["updatedUtc"] = DateTimeOffset.UtcNow.ToString("O");
             if (displayBrightness.HasValue) status["displayBrightness"] = displayBrightness.Value;
             if (sdrBrightness.HasValue) status["sdrBrightness"] = sdrBrightness.Value;
+            if (dim.HasValue) status["dim"] = dim.Value;
             WriteStatusJsonAtomic(status.ToJsonString());
         }
         catch (Exception ex) { Logger.Log($"WriteSliderStatusJson: {ex.Message}"); }
@@ -1535,6 +1543,7 @@ public partial class PopupWindow : Window
             DimOverlay.SetLevel(0);
             _dimRevealed = false;
             UpdateDimRow();
+            WriteSliderStatusJson(dim: 0);
         }
     }
 
@@ -1588,6 +1597,7 @@ public partial class PopupWindow : Window
         DimValueLabel.Text = $"{pct}%";
         DimOverlay.SetLevel(pct);
         RaiseAboveDim();
+        WriteSliderStatusJson(dim: pct);
     }
 
     private void OnDimSliderDown(object sender, MouseButtonEventArgs e)
@@ -1611,6 +1621,16 @@ public partial class PopupWindow : Window
         _dimCapturing = false;
         DimSlider.ReleaseMouseCapture();
         e.Handled = true;
+    }
+
+    // Stream Deck Dim dial entry point: set the software dim overlay directly, 0–100.
+    private Task ApplyDimValue(double value)
+    {
+        int pct = Math.Clamp((int)Math.Round(value), 0, 100);
+        DimOverlay.SetLevel(pct);
+        UpdateDimRow();
+        WriteSliderStatusJson(dim: pct);
+        return Task.CompletedTask;
     }
 
     private void QueueBrightnessSet(int pct)

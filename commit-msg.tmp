@@ -1,0 +1,18 @@
+Add Stream Deck Dim dial; document software dim in README
+
+Stream Deck +:
+- New "Dim Dial" action (dial-dim) — rotate 0-100% to drive the software
+  dim overlay via --set-dim=, push to show the popup. Only rotatable when
+  HDR is off (HDR uses the SDR Balance dial). Crescent-moon icon.
+
+App:
+- App parses --set-dim=; HandleCommand routes it to ApplyDimValue, which
+  sets the DimOverlay directly (ignored when HDR is on).
+- status.json gains a "dim" field so the dial reads the current level;
+  popup dim slider and brightness-raise clears keep it in sync.
+- RefreshState no longer wipes an active overlay on a passive refresh — a
+  dial-set dim is only cleared by an explicit brightness raise.
+
+README: document the Dim feature (Display card) and the Dim dial.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
