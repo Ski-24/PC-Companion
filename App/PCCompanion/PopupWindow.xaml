@@ -295,6 +295,31 @@
                                 Style="{StaticResource ThinSlider}"
                                 ValueChanged="OnBrightnessChanged"/>
 
+                        <!-- Software Dim row — revealed when brightness bottoms out at 0 (HDR off);
+                             drives the DimOverlay window to dim below the hardware backlight floor -->
+                        <TextBlock x:Name="DimDimLabel"
+                                   Canvas.Left="14" Canvas.Top="100"
+                                   Text="Dim"
+                                   FontFamily="Segoe UI" FontSize="10"
+                                   Foreground="{DynamicResource DimBrush}"
+                                   Visibility="Collapsed"/>
+                        <TextBlock x:Name="DimValueLabel"
+                                   Canvas.Left="300" Canvas.Top="100"
+                                   Width="70" Height="13"
+                                   Text="0%"
+                                   FontFamily="Segoe UI" FontSize="10"
+                                   TextAlignment="Right"
+                                   Foreground="{DynamicResource DimBrush}"
+                                   Visibility="Collapsed"/>
+                        <Slider x:Name="DimSlider"
+                                Canvas.Left="14" Canvas.Top="115"
+                                Width="356" Height="22"
+                                Minimum="0" Maximum="100"
+                                IsSnapToTickEnabled="True" TickFrequency="1"
+                                Style="{StaticResource ThinSlider}"
+                                ValueChanged="OnDimChanged"
+                                Visibility="Collapsed"/>
+
                         <!-- SDR Balance row — same position as Brightness, visible when HDR on -->
                         <TextBlock x:Name="SdrDimLabel"
                                    Canvas.Left="14" Canvas.Top="58"

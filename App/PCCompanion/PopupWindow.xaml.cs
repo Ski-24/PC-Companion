@@ -36,7 +36,12 @@ public partial class PopupWindow : Window
     private CancellationTokenSource? _hdrCts;
     private bool _brightnessCapturing;
     private bool _sdrCapturing;
+    private bool _dimCapturing;
     private bool _sceneInProgress;
+    // Software-dim reveal: the Dim slider shows whenever hardware brightness is at 0
+    // (HDR off); raising brightness back above 0 clears the dim and re-hides it.
+    private bool _dimRevealed;
+    private bool _hdrOnLast;
     private PrayerTimesModule?        _prayerModule;
     private string _latestPrayerStatus = "Prayer";
     private string _latestPrayerCountdown = "";
@@ -119,6 +124,9 @@ public partial class PopupWindow : Window
         SdrSlider.PreviewMouseLeftButtonDown        += OnSdrSliderDown;
         SdrSlider.PreviewMouseMove                  += OnSdrSliderMove;
         SdrSlider.PreviewMouseLeftButtonUp          += OnSdrSliderUp;
+        DimSlider.PreviewMouseLeftButtonDown        += OnDimSliderDown;
+        DimSlider.PreviewMouseMove                  += OnDimSliderMove;
+        DimSlider.PreviewMouseLeftButtonUp          += OnDimSliderUp;
 
         _cardBorders = new Dictionary<string, Border>
         {
@@ -424,6 +432,7 @@ public partial class PopupWindow : Window
         // and commit an unintended write. Reset both here.
         if (_brightnessCapturing) { _brightnessCapturing = false; BrightnessSlider.ReleaseMouseCapture(); }
         if (_sdrCapturing)        { _sdrCapturing        = false; SdrSlider.ReleaseMouseCapture(); }
+        if (_dimCapturing)        { _dimCapturing        = false; DimSlider.ReleaseMouseCapture(); }
 
         if (_editMode) ExitEditMode();
 
@@ -696,6 +705,26 @@ public partial class PopupWindow : Window
         HdrStatus.Foreground = hdrOn ? (Brush)res["GoodBrush"] : (Brush)res["BadBrush"];
         HdrBtn.Text          = hdrOn ? "Turn Off" : "Turn On";
 
+        // Software dim is an SDR-mode tool: when HDR turns on, the SDR Balance slider takes
+        // over, so drop any active overlay and reset the reveal.
+        _hdrOnLast = hdrOn;
+        if (hdrOn)
+        {
+            if (DimOverlay.Level > 0) DimOverlay.SetLevel(0);
+            _dimRevealed = false;
+        }
+        else
+        {
+            // HDR off: show the Dim row whenever brightness is parked at 0; otherwise
+            // clear any active dim (brightness is the master control).
+            if (brt == 0) _dimRevealed = true;
+            else if (brt > 0)
+            {
+                _dimRevealed = false;
+                if (DimOverlay.Level > 0) DimOverlay.SetLevel(0);
+            }
+        }
+
         // Suppress slider events for ALL layout/visibility/value changes below ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â
         // WPF can fire ValueChanged on Slider when Visibility goes CollapsedÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢Visible
         // during template application, which would call HdrSliderService.Set unexpectedly.
@@ -709,6 +738,16 @@ public partial class PopupWindow : Window
         SdrDimLabel.Visibility        = sdrVis;
         SdrValueLabel.Visibility      = sdrVis;
         SdrSlider.Visibility          = sdrVis;
+
+        // Dim row: only under the brightness slider (HDR off), and only once revealed by
+        // the brightness-at-0 gesture or while an overlay is already active.
+        bool dimShow = brtVis == Visibility.Visible && (DimOverlay.Level > 0 || _dimRevealed);
+        var dimVis = dimShow ? Visibility.Visible : Visibility.Collapsed;
+        DimDimLabel.Visibility   = dimVis;
+        DimValueLabel.Visibility = dimVis;
+        DimSlider.Visibility     = dimVis;
+        DimSlider.Value          = DimOverlay.Level;
+        DimValueLabel.Text       = $"{DimOverlay.Level}%";
 
         // Auto HDR row: only when HDR is on AND the user hasn't hidden it in settings.
         var autoHdrVis = (hdrOn && cfg.AutoHdrEnabled) ? Visibility.Visible : Visibility.Collapsed;
@@ -724,8 +763,9 @@ public partial class PopupWindow : Window
             ? (autoHdrVis == Visibility.Visible
                 ? (sdrVis == Visibility.Visible ? 140 : 100)
                 : (sdrVis == Visibility.Visible ? 100 : 70))
-            : (brtVis == Visibility.Visible ? 100 : 70);
+            : (brtVis == Visibility.Visible ? (dimShow ? 140 : 100) : 70);
         LayoutCards();
+        RaiseAboveDim();
 
         if (_brightnessCapturing)
         {
@@ -1445,6 +1485,7 @@ public partial class PopupWindow : Window
         _lastBrightnessCommandUtc = DateTimeOffset.UtcNow;
         WriteSliderStatusJson(displayBrightness: pct);
         QueueBrightnessSet(pct);
+        HandleBrightnessCommitted(pct);
         e.Handled = true;
     }
 
@@ -1471,7 +1512,105 @@ public partial class PopupWindow : Window
         _suppressSliders = false;
 
         QueueBrightnessSet(pct);
+        HandleBrightnessCommitted(pct);
         return Task.CompletedTask;
+    }
+
+    // ── Software dim (overlay below the hardware brightness floor) ─────────────
+
+    // Called whenever hardware brightness is committed. At 0 the Dim slider reveals
+    // immediately; above 0 any active dim is cleared (brightness is the master).
+    private void HandleBrightnessCommitted(int pct)
+    {
+        if (_hdrOnLast) return;   // dim is HDR-off only
+
+        if (pct <= 0)
+        {
+            if (!_dimRevealed) { _dimRevealed = true; UpdateDimRow(); }
+            return;
+        }
+
+        if (_dimRevealed || DimOverlay.Level > 0)
+        {
+            DimOverlay.SetLevel(0);
+            _dimRevealed = false;
+            UpdateDimRow();
+        }
+    }
+
+    // Reflows just the Dim row + Display card height between full RefreshState passes.
+    private void UpdateDimRow()
+    {
+        var cfg = AppSettings.Current;
+        bool dimShow = !_hdrOnLast && cfg.BrightnessSliderEnabled
+                       && (DimOverlay.Level > 0 || _dimRevealed);
+        var vis = dimShow ? Visibility.Visible : Visibility.Collapsed;
+
+        _suppressSliders = true;
+        DimDimLabel.Visibility   = vis;
+        DimValueLabel.Visibility = vis;
+        DimSlider.Visibility     = vis;
+        DimSlider.Value          = DimOverlay.Level;
+        DimValueLabel.Text       = $"{DimOverlay.Level}%";
+        _suppressSliders = false;
+
+        if (!_hdrOnLast)
+            DisplayCard.Height = cfg.BrightnessSliderEnabled ? (dimShow ? 140 : 100) : 70;
+        LayoutCards();
+        RaiseAboveDim();
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
+        int X, int Y, int cx, int cy, uint uFlags);
+    private static readonly IntPtr HWND_TOPMOST = new(-1);
+    private const uint SWP_NOMOVE     = 0x0002;
+    private const uint SWP_NOSIZE     = 0x0001;
+    private const uint SWP_NOACTIVATE = 0x0010;
+
+    // The overlay and the popup are both top-most; re-assert the popup to the top of the
+    // top-most band so the control you're using never gets dimmed by its own overlay.
+    // SetWindowPos reorders in place (unlike toggling Topmost, which briefly drops the
+    // window out of the band and makes it flicker as the overlay covers it for a frame).
+    private void RaiseAboveDim()
+    {
+        if (DimOverlay.Level <= 0 || !IsVisible) return;
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (hwnd != IntPtr.Zero)
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+
+    private void OnDimChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_suppressSliders) return;
+        int pct = (int)Math.Round(e.NewValue);
+        DimValueLabel.Text = $"{pct}%";
+        DimOverlay.SetLevel(pct);
+        RaiseAboveDim();
+    }
+
+    private void OnDimSliderDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_suppressSliders) return;
+        _dimCapturing = true;
+        DimSlider.CaptureMouse();
+        DimSlider.Value = SliderValueFromMouse(DimSlider, e);
+        e.Handled = true;
+    }
+
+    private void OnDimSliderMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_dimCapturing || e.LeftButton != MouseButtonState.Pressed) return;
+        DimSlider.Value = SliderValueFromMouse(DimSlider, e);
+    }
+
+    private void OnDimSliderUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_dimCapturing) return;
+        _dimCapturing = false;
+        DimSlider.ReleaseMouseCapture();
+        e.Handled = true;
     }
 
     private void QueueBrightnessSet(int pct)

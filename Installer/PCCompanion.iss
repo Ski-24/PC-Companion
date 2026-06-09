@@ -13,7 +13,7 @@
 ; ============================================================================
 
 #define MyAppName        "PC Companion"
-#define MyAppVersion     "1.0.2"
+#define MyAppVersion     "1.0.3"
 #define MyAppPublisher   "Abdulla"
 #define MyAppExeName     "PCCompanion.exe"
 #define RepoRoot         "C:\PC-Control-App"
