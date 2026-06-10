@@ -96,6 +96,37 @@
             </ScrollViewer.Resources>
         <StackPanel>
 
+            <!-- ── Update banner: hidden until a newer release is found (TrayManager startup
+                 check → ShowUpdateAvailable). Click anywhere to download + install; the ✕
+                 dismisses it for this session. Collapsed by default so layout is unchanged. ── -->
+            <Border x:Name="UpdateBanner"
+                    Visibility="Collapsed"
+                    Margin="18,14,18,0" Height="42" CornerRadius="16"
+                    Background="{DynamicResource GoodBrush}"
+                    Cursor="Hand"
+                    MouseLeftButtonDown="OnUpdateBannerClick">
+                <Grid>
+                    <TextBlock Text="⬇" FontFamily="Segoe UI Symbol" FontSize="16" FontWeight="Bold"
+                               Foreground="White" VerticalAlignment="Center"
+                               Margin="16,0,0,0" HorizontalAlignment="Left"/>
+                    <TextBlock x:Name="UpdateBannerText"
+                               Text="Update available — click to install"
+                               Margin="42,0,40,0"
+                               FontFamily="Segoe UI" FontSize="13" FontWeight="Bold"
+                               Foreground="White" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"/>
+                    <Border Width="28" Height="28" CornerRadius="14"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Margin="0,0,7,0" Background="#33000000" Cursor="Hand"
+                            ToolTip="Dismiss"
+                            MouseLeftButtonDown="OnUpdateBannerDismiss">
+                        <TextBlock Text="✕" FontFamily="Segoe UI" FontSize="12" FontWeight="Bold"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                </Grid>
+            </Border>
+
             <!-- ── Main area: cards + settings toggle (height set dynamically by LayoutCards) ── -->
             <Canvas x:Name="CardsCanvas" Width="420" Height="344">
 

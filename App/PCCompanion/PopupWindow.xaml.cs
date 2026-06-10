@@ -59,6 +59,14 @@ public partial class PopupWindow : Window
     private readonly DispatcherTimer _autoHideTimer;
     private static readonly TimeSpan CommandAutoHideDelay = TimeSpan.FromSeconds(3);
 
+    // Global click-away watcher. OnDeactivated only fires if the window was the foreground/
+    // active window, but Stream-Deck/CLI shows arrive via the pipe in a background process,
+    // so Windows' foreground lock denies activation (worst over fullscreen apps) and the
+    // popup never deactivates on click-away. This low-level mouse hook closes the popup on
+    // any click outside it regardless of activation state, so click-off ALWAYS works.
+    private IntPtr _mouseHook = IntPtr.Zero;
+    private LowLevelMouseProc? _mouseHookProc; // kept alive while hooked (GC guard)
+
     private TextBlock _dropText1 = null!, _dropText2 = null!;
     private int _sel1 = -1, _sel2 = -1;
     private List<(string Id, string Name)> _devices = new();
@@ -213,6 +221,43 @@ public partial class PopupWindow : Window
     }
 
     public void HidePopup() => Hide();
+
+    // ── Update banner ──────────────────────────────────────────────────────────────────
+    // Set by TrayManager's automatic startup check when a newer release exists. The banner
+    // persists once shown (no extra clicking / no "check" button needed) and stays visible
+    // across popup open/close until the user installs or dismisses it.
+    private UpdateService.UpdateInfo? _pendingUpdate;
+    private bool _updateDismissed;
+
+    internal void ShowUpdateAvailable(UpdateService.UpdateInfo info)
+    {
+        _pendingUpdate = info;
+        if (_updateDismissed) return;                 // user closed it this session — stay quiet
+        UpdateBannerText.Text = $"Update {info.Tag} available — click to install";
+        UpdateBanner.Visibility = Visibility.Visible;
+    }
+
+    private async void OnUpdateBannerClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (_pendingUpdate is null) return;
+        _actionInProgress = true;                     // keep the popup open during the prompt/download
+        try
+        {
+            await UpdateService.ConfirmDownloadInstallAsync(_pendingUpdate, this,
+                s => UpdateBannerText.Text = s);
+            // On success the installer relaunches the app; if it failed/cancelled, restore the label.
+            UpdateBannerText.Text = $"Update {_pendingUpdate.Tag} available — click to install";
+        }
+        finally { _actionInProgress = false; }
+    }
+
+    private void OnUpdateBannerDismiss(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;                              // don't trigger the banner's install click
+        _updateDismissed = true;
+        UpdateBanner.Visibility = Visibility.Collapsed;
+    }
 
     private void HidePopupFromUser()
     {
@@ -431,7 +476,8 @@ public partial class PopupWindow : Window
 
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if (IsVisible) return;
+        if (IsVisible) { InstallMouseHook(); return; }
+        RemoveMouseHook();
         _autoHideTimer.Stop();
         HideHelp();
 
@@ -660,20 +706,30 @@ public partial class PopupWindow : Window
             (cur == cfg.Device2Id ||
              (curDev.Name.Length > 0 && AudioManager.Normalize(curDev.Name) == AudioManager.Normalize(cfg.Device2Label)));
 
-        if (string.IsNullOrEmpty(cfg.Device1Id))
+        // Not set up until BOTH devices are chosen. Mirror the Couch/Morning "Setup" state:
+        // dim the card, show a hint + tooltip. OnAudioClick/DoSwitchAudio already refuse to
+        // run while half-configured, so the card matches what the button will actually do.
+        bool audioConfigured = !string.IsNullOrEmpty(cfg.Device1Id) && !string.IsNullOrEmpty(cfg.Device2Id);
+        if (!audioConfigured)
         {
-            AudioStatus.Text       = "Not configured";
+            AudioStatus.Text       = "Set up in Settings";
             AudioStatus.Foreground = (Brush)res["DimBrush"];
-            AudioBtn.Text          = "Switch";
+            AudioBtn.Text          = "Setup";
+            AudioCard.Opacity      = 0.55;
+            AudioCard.ToolTip      = "Set up your two audio devices in Settings first.";
         }
         else if (isDev2)
         {
+            AudioCard.Opacity      = 1.0;
+            AudioCard.ToolTip      = null;
             AudioStatus.Text       = Short(cfg.Device2Label);
             AudioStatus.Foreground = (Brush)res["BlueBrush"];
             AudioBtn.Text          = Short(cfg.Device1Label);
         }
         else
         {
+            AudioCard.Opacity      = 1.0;
+            AudioCard.ToolTip      = null;
             // On Device 1, OR on a device that's neither configured one (e.g. a scene's
             // audio target like "A50 X Voice"). The card never surfaces that foreign
             // target ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â it always reflects its own two devices, presenting the unknown
@@ -1576,6 +1632,82 @@ public partial class PopupWindow : Window
     private const uint SWP_NOMOVE     = 0x0002;
     private const uint SWP_NOSIZE     = 0x0001;
     private const uint SWP_NOACTIVATE = 0x0010;
+
+    // ── Global click-away hook (WH_MOUSE_LL) ───────────────────────────────────────────
+    // Closes the popup on a click outside it even when the window was never activated
+    // (Stream Deck / CLI shows over a fullscreen app). Listens only — never swallows the
+    // click — so the underlying app still receives it.
+    private delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+    [DllImport("user32.dll")]
+    private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+    private const int WH_MOUSE_LL    = 14;
+    private const int WM_LBUTTONDOWN = 0x0201;
+    private const int WM_RBUTTONDOWN = 0x0204;
+    private const int WM_MBUTTONDOWN = 0x0207;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSLLHOOKSTRUCT { public int x; public int y; public uint mouseData; public uint flags; public uint time; public IntPtr dwExtraInfo; }
+
+    private void InstallMouseHook()
+    {
+        if (_mouseHook != IntPtr.Zero) return; // already hooked
+        _mouseHookProc = MouseHookCallback;    // hold a ref so the GC can't collect it mid-callback
+        // A WH_MOUSE_LL hook needs a valid module handle; the current process module works.
+        using var proc = System.Diagnostics.Process.GetCurrentProcess();
+        using var mod  = proc.MainModule;
+        IntPtr hMod = mod is null ? IntPtr.Zero : GetModuleHandle(mod.ModuleName);
+        _mouseHook = SetWindowsHookEx(WH_MOUSE_LL, _mouseHookProc, hMod, 0);
+        if (_mouseHook == IntPtr.Zero) Logger.Log("InstallMouseHook: SetWindowsHookEx failed");
+    }
+
+    private void RemoveMouseHook()
+    {
+        if (_mouseHook == IntPtr.Zero) return;
+        UnhookWindowsHookEx(_mouseHook);
+        _mouseHook     = IntPtr.Zero;
+        _mouseHookProc = null;
+    }
+
+    private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0)
+        {
+            int msg = (int)wParam;
+            if (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN || msg == WM_MBUTTONDOWN)
+            {
+                var hs = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+                // Runs on the UI thread (LL hooks dispatch on the installing thread's message
+                // loop), but defer the actual hide so we don't tear down the window mid-callback.
+                Dispatcher.BeginInvoke(new Action(() => DismissIfOutside(hs.x, hs.y)));
+            }
+        }
+        return CallNextHookEx(_mouseHook, nCode, wParam, lParam);
+    }
+
+    // Closes the popup if the click point (physical screen px) is outside the visible popup.
+    // Mirrors the OnDeactivated guards so an outside click can't blow away an open settings
+    // panel, edit mode, help bubble, or an in-flight action (incl. an open dropdown).
+    private void DismissIfOutside(int xPx, int yPx)
+    {
+        if (!IsVisible) return;
+        if (_actionInProgress || _settingsExpanded || _editMode || HelpPopup.IsOpen) return;
+        try
+        {
+            Point tl = PopupBorder.PointToScreen(new Point(0, 0));
+            Point br = PopupBorder.PointToScreen(new Point(PopupBorder.ActualWidth, PopupBorder.ActualHeight));
+            bool inside = xPx >= tl.X && xPx <= br.X && yPx >= tl.Y && yPx <= br.Y;
+            if (!inside) HidePopupFromUser();
+        }
+        catch { /* layout not ready — leave the popup open */ }
+    }
 
     // The overlay and the popup are both top-most; re-assert the popup to the top of the
     // top-most band so the control you're using never gets dimmed by its own overlay.
@@ -2542,7 +2674,8 @@ public partial class PopupWindow : Window
         GopherStatus.Effect     = NewShadow();
 
         var cfg = AppSettings.Current;
-        AudioStatus.Foreground = string.IsNullOrEmpty(cfg.Device1Id)
+        bool audioConfigured = !string.IsNullOrEmpty(cfg.Device1Id) && !string.IsNullOrEmpty(cfg.Device2Id);
+        AudioStatus.Foreground = !audioConfigured
             ? (Brush)res["DimBrush"]
             : AudioStatus.Text == Short(cfg.Device1Label)
                 ? (Brush)res["PurpBrush"]

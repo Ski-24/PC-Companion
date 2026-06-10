@@ -58,6 +58,9 @@ sealed class TrayManager : IDisposable
                 else
                 {
                     _pendingUpdate = result.Info;
+                    // Persistent in-app notice at the top of the popup (no "check" button needed).
+                    _popup.ShowUpdateAvailable(result.Info!);
+                    // Plus an immediate tray balloon, since the popup is usually closed at startup.
                     _tray.BalloonTipTitle = "PC Companion update available";
                     _tray.BalloonTipText  = $"Version {result.Info!.Tag} is ready. Click to install.";
                     _tray.ShowBalloonTip(8000);
