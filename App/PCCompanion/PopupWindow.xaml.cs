@@ -349,6 +349,14 @@ public partial class PopupWindow : Window
             return;
         }
 
+        if (TryParseCommandValue(command, "--set-bg-volume=", out double bgVolValue))
+        {
+            bool popupShown = ShowPopupForCommand();
+            ApplyBackgroundVolumeValue(bgVolValue);
+            if (popupShown) StartAutoHide(CommandAutoHideDelay);
+            return;
+        }
+
         // Show while the action runs (its RefreshState updates the live status), then close
         // immediately — Stream Deck toggles minimize as soon as the change is done rather than
         // lingering on the auto-hide timer. (The dial/value commands above keep the timer so
@@ -363,6 +371,7 @@ public partial class PopupWindow : Window
             case "--toggle-auto-hdr":   await DoToggleAutoHdr();  break;
             case "--toggle-couch-mode": await RunCouchToggle();   break;
             case "--toggle-morning-mode": await RunMorningToggle(); break;
+            case "--toggle-background": DoToggleBackground();     break;
             default: Logger.Log($"HandleCommand: unknown command '{command}'"); break;
         }
 
@@ -994,6 +1003,8 @@ public partial class PopupWindow : Window
                 displayBrightness = brightness >= 0 ? brightness : (int?)null,
                 sdrBrightness = cfg.SdrBrightness,
                 dim = DimOverlay.Level,
+                backgroundVolume = (int)Math.Round(cfg.BackgroundSoundVolume * 100),
+                backgroundPlaying = BackgroundSoundPlayer.IsPlaying,
                 prayerStatus = _latestPrayerStatus,
                 prayerCountdown = _latestPrayerCountdown,
             };
@@ -1025,7 +1036,8 @@ public partial class PopupWindow : Window
         catch (Exception ex) { Logger.Log($"WritePrayerStatusJson: {ex.Message}"); }
     }
 
-    private void WriteSliderStatusJson(int? displayBrightness = null, double? sdrBrightness = null, int? dim = null)
+    private void WriteSliderStatusJson(int? displayBrightness = null, double? sdrBrightness = null, int? dim = null,
+                                       int? backgroundVolume = null)
     {
         try
         {
@@ -1044,6 +1056,7 @@ public partial class PopupWindow : Window
             if (displayBrightness.HasValue) status["displayBrightness"] = displayBrightness.Value;
             if (sdrBrightness.HasValue) status["sdrBrightness"] = sdrBrightness.Value;
             if (dim.HasValue) status["dim"] = dim.Value;
+            if (backgroundVolume.HasValue) status["backgroundVolume"] = backgroundVolume.Value;
             WriteStatusJsonAtomic(status.ToJsonString());
         }
         catch (Exception ex) { Logger.Log($"WriteSliderStatusJson: {ex.Message}"); }
@@ -1861,6 +1874,24 @@ public partial class PopupWindow : Window
         var cfg = AppSettings.Current;
         cfg.BackgroundSoundVolume = vol;
         cfg.Save();
+        WriteSliderStatusJson(backgroundVolume: pct);
+    }
+
+    // Stream Deck background-volume dial entry point: set the loop volume directly, 0–100.
+    private void ApplyBackgroundVolumeValue(double value)
+    {
+        int pct = Math.Clamp((int)Math.Round(value), 0, 100);
+        _suppressSliders = true;
+        BackgroundVolSlider.Value    = pct;
+        BackgroundVolValueLabel.Text = $"{pct}%";
+        _suppressSliders = false;
+
+        float vol = pct / 100f;
+        BackgroundSoundPlayer.SetVolume(vol);
+        var cfg = AppSettings.Current;
+        cfg.BackgroundSoundVolume = vol;
+        cfg.Save();
+        WriteSliderStatusJson(backgroundVolume: pct);
     }
 
     private void OnBackgroundVolSliderDown(object sender, MouseButtonEventArgs e)

@@ -130,3 +130,26 @@ export class DialDim extends BrightnessDialAction {
 		return `<path d="M44 8a28 28 0 1 0 18 50A22 22 0 0 1 44 8Z" fill="${this.accent}"/>`;
 	}
 }
+
+@action({ UUID: "com.abdulla.pccompanion.dial-background" })
+export class DialBackground extends BrightnessDialAction {
+	protected readonly label = "Background";
+	protected readonly commandPrefix = "--set-bg-volume=";
+	protected readonly step = 2;
+	protected readonly min = 0;
+	protected readonly max = 100;
+	protected readonly unit = "%";
+	protected readonly accent = "#35E06F";
+	// Push toggles play/pause of the looping background sound.
+	protected override readonly pushCommand = "--toggle-background";
+	protected override readonly pushLabel = "Play / Pause";
+
+	protected valueFromStatus(status?: PcStatus): number {
+		return typeof status?.backgroundVolume === "number" ? status.backgroundVolume : 50;
+	}
+
+	protected override glyphMarkup(): string {
+		// Musical note — "background sound".
+		return `<path d="M50 12v34a12 12 0 1 1-6-10V20l-20 5v27a12 12 0 1 1-6-10V20Z" fill="${this.accent}"/>`;
+	}
+}

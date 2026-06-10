@@ -32,6 +32,7 @@ public partial class App
                 case "--toggle-auto-hdr":
                 case "--toggle-couch-mode":
                 case "--toggle-morning-mode":
+                case "--toggle-background":
                     return a.ToLowerInvariant();
             }
 
@@ -39,7 +40,8 @@ public partial class App
                 a.StartsWith("--adjust-sdr=", StringComparison.OrdinalIgnoreCase) ||
                 a.StartsWith("--set-brightness=", StringComparison.OrdinalIgnoreCase) ||
                 a.StartsWith("--set-sdr=", StringComparison.OrdinalIgnoreCase) ||
-                a.StartsWith("--set-dim=", StringComparison.OrdinalIgnoreCase))
+                a.StartsWith("--set-dim=", StringComparison.OrdinalIgnoreCase) ||
+                a.StartsWith("--set-bg-volume=", StringComparison.OrdinalIgnoreCase))
                 return a.ToLowerInvariant();
         }
         return null;

@@ -104,6 +104,18 @@ function Draw-Symbol($g, [string]$name, [float]$s, [string]$accent) {
 			$g.FillRegion($b, $region)
 			$region.Dispose(); $cut.Dispose(); $path.Dispose(); $b.Dispose()
 		}
+		"dial-background" {
+			# Beamed musical note (two note heads + stems + a beam) — "background sound".
+			$b = Brush $accent
+			$g.FillEllipse($b, $s*.27, $s*.57, $s*.15, $s*.12)
+			$g.FillEllipse($b, $s*.55, $s*.51, $s*.15, $s*.12)
+			$b.Dispose()
+			$g.DrawLine($p, $s*.415, $s*.63, $s*.415, $s*.30)
+			$g.DrawLine($p, $s*.695, $s*.57, $s*.695, $s*.26)
+			$beam = Pen $accent ([Math]::Max(3.0, $s*.07))
+			$g.DrawLine($beam, $s*.415, $s*.30, $s*.695, $s*.26)
+			$beam.Dispose()
+		}
 		"toggle-couch-mode" {
 			$g.DrawLine($p, $s*.28, $s*.44, $s*.72, $s*.44)
 			$g.DrawArc($p, $s*.21, $s*.34, $s*.18, $s*.22, 90, 180)
@@ -158,6 +170,7 @@ $actions = @{
 	"dial-brightness"     = @{ Label = "BRT"; Accent = "#20D6FF" }
 	"dial-sdr"            = @{ Label = "SDR"; Accent = "#A8FFB8" }
 	"dial-dim"            = @{ Label = "DIM"; Accent = "#9B8CFF" }
+	"dial-background"     = @{ Label = "BG"; Accent = "#35E06F" }
 	"toggle-couch-mode"   = @{ Label = "COUCH"; Accent = "#FF5C5C" }
 	"toggle-morning-mode" = @{ Label = "MORN"; Accent = "#FFA94D" }
 }

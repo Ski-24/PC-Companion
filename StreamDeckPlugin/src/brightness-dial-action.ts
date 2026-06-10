@@ -19,6 +19,10 @@ export abstract class BrightnessDialAction extends SingletonAction<CommandSettin
 	protected abstract readonly max: number;
 	protected abstract readonly unit: string;
 	protected abstract readonly accent: string;
+	// What the dial PUSH does. Defaults to showing the popup; subclasses can override
+	// (e.g. the background-sound dial pushes to play/pause).
+	protected readonly pushCommand: string = "--show-popup";
+	protected readonly pushLabel: string = "Show popup";
 	protected canRotate(_status?: PcStatus): boolean {
 		return true;
 	}
@@ -38,7 +42,7 @@ export abstract class BrightnessDialAction extends SingletonAction<CommandSettin
 		await dial.setFeedbackLayout("$B1");
 		await dial.setTriggerDescription({
 			rotate: `Adjust ${this.label}`,
-			push: "Show popup",
+			push: this.pushLabel,
 		});
 		await this.refreshFeedback();
 	}
@@ -65,7 +69,8 @@ export abstract class BrightnessDialAction extends SingletonAction<CommandSettin
 	}
 
 	override async onDialDown(ev: DialDownEvent<CommandSettings>): Promise<void> {
-		this.spawnCommand(ev.payload.settings.exePath, "--show-popup");
+		this.spawnCommand(ev.payload.settings.exePath, this.pushCommand);
+		setTimeout(() => this.refreshFeedback().catch(() => undefined), 600).unref();
 	}
 
 	async refreshFeedback(): Promise<void> {

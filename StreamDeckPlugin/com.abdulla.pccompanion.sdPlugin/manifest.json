@@ -160,6 +160,23 @@
 			}
 		},
 		{
+			"Name": "Background Sound Dial",
+			"UUID": "com.abdulla.pccompanion.dial-background",
+			"Icon": "imgs/actions/dial-background/icon",
+			"Tooltip": "Adjust the background sound volume; push to play/pause the loop",
+			"Controllers": ["Encoder"],
+			"PropertyInspectorPath": "ui/exe-path.html",
+			"States": [
+				{
+					"Image": "imgs/actions/dial-background/key",
+					"TitleAlignment": "bottom"
+				}
+			],
+			"Encoder": {
+				"layout": "$B1"
+			}
+		},
+		{
 			"Name": "Toggle Couch Mode",
 			"UUID": "com.abdulla.pccompanion.toggle-couch-mode",
 			"Icon": "imgs/actions/toggle-couch-mode/icon",
