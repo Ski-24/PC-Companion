@@ -168,18 +168,9 @@ public partial class PopupWindow : Window
 
         AttachHelpEvents();
 
-        _prayerModule = new PrayerTimesModule(AppSettings.Current.Prayer);
-        _prayerModule.Updated += (status, countdown) =>
-        {
-            _latestPrayerStatus    = status;
-            _latestPrayerCountdown = countdown;
-            PrayerStatus.Text        = status;
-            PrayerCountdown.Text     = countdown;
-            PrayerCountdown.Visibility = string.IsNullOrEmpty(countdown)
-                ? Visibility.Collapsed : Visibility.Visible;
-            WritePrayerStatusJson();
-        };
-        _ = _prayerModule.InitializeAsync();
+        // Builds the prayer module, or shows the "Set up in Settings" hint if Country/City
+        // are unset. Single source of truth for the prayer card (also used after edits).
+        ReinitPrayerModule();
     }
 
     // Loads the embedded app icon into the header logo image, picking a crisp frame for the
@@ -349,9 +340,10 @@ public partial class PopupWindow : Window
             return;
         }
 
-        // Show first so the popup appears immediately; the action's own RefreshState
-        // updates the status live. Start the timer after the command so long-running
-        // actions still get a full confirmation window.
+        // Show while the action runs (its RefreshState updates the live status), then close
+        // immediately — Stream Deck toggles minimize as soon as the change is done rather than
+        // lingering on the auto-hide timer. (The dial/value commands above keep the timer so
+        // their slider value stays visible while you turn the dial.)
         ShowPopup();
 
         switch (command)
@@ -365,7 +357,7 @@ public partial class PopupWindow : Window
             default: Logger.Log($"HandleCommand: unknown command '{command}'"); break;
         }
 
-        StartAutoHide(CommandAutoHideDelay);
+        HidePopup();
     }
 
     // ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ Auto-hide ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬
@@ -1428,15 +1420,21 @@ public partial class PopupWindow : Window
         var devices = AudioManager.GetRenderDevices();
         if (devices.Count == 0) return;
 
-        var names  = devices.Select(d => d.Name).ToList();
-        int selIdx = devices.FindIndex(d => d.Id == AppSettings.Current.Couch.TargetAudioId);
-        if (selIdx < 0) selIdx = 0;
+        // Index 0 = "Select" (none); real devices follow at +1, so a target can be reset.
+        var names  = new List<string> { "Select" };
+        names.AddRange(devices.Select(d => d.Name));
+        int found  = devices.FindIndex(d => d.Id == AppSettings.Current.Couch.TargetAudioId);
+        int selIdx = found < 0 ? 0 : found + 1;
 
         var screenPt = anchor.PointToScreen(new Point(0, anchor.ActualHeight + 2));
         var drop = new DropdownWindow(names, selIdx, screenPt, (int)anchor.ActualWidth) { Owner = this };
 
         _actionInProgress = true;
-        drop.Selected += idx => OnCouchAudioSelect(devices[idx]);
+        drop.Selected += idx =>
+        {
+            if (idx <= 0) OnCouchAudioClear();
+            else          OnCouchAudioSelect(devices[idx - 1]);
+        };
         drop.Closed   += (_, _) => _actionInProgress = false;
         drop.Show();
     }
@@ -1450,6 +1448,16 @@ public partial class PopupWindow : Window
         cfg.Save();
         AppSettings.Invalidate();
         if (_couchAudioText is not null) _couchAudioText.Text = dev.Name;
+    }
+
+    private void OnCouchAudioClear()
+    {
+        var cfg = AppSettings.Current;
+        cfg.Couch.TargetAudioId    = "";
+        cfg.Couch.TargetAudioLabel = "";
+        cfg.Save();
+        AppSettings.Invalidate();
+        if (_couchAudioText is not null) _couchAudioText.Text = "Select...";
     }
 
     private void ToggleMorning(string which)
@@ -1474,15 +1482,21 @@ public partial class PopupWindow : Window
         var devices = AudioManager.GetRenderDevices();
         if (devices.Count == 0) return;
 
-        var names  = devices.Select(d => d.Name).ToList();
-        int selIdx = devices.FindIndex(d => d.Id == AppSettings.Current.Morning.TargetAudioId);
-        if (selIdx < 0) selIdx = 0;
+        // Index 0 = "Select" (none); real devices follow at +1, so a target can be reset.
+        var names  = new List<string> { "Select" };
+        names.AddRange(devices.Select(d => d.Name));
+        int found  = devices.FindIndex(d => d.Id == AppSettings.Current.Morning.TargetAudioId);
+        int selIdx = found < 0 ? 0 : found + 1;
 
         var screenPt = anchor.PointToScreen(new Point(0, anchor.ActualHeight + 2));
         var drop = new DropdownWindow(names, selIdx, screenPt, (int)anchor.ActualWidth) { Owner = this };
 
         _actionInProgress = true;
-        drop.Selected += idx => OnMorningAudioSelect(devices[idx]);
+        drop.Selected += idx =>
+        {
+            if (idx <= 0) OnMorningAudioClear();
+            else          OnMorningAudioSelect(devices[idx - 1]);
+        };
         drop.Closed   += (_, _) => _actionInProgress = false;
         drop.Show();
     }
@@ -1496,6 +1510,16 @@ public partial class PopupWindow : Window
         cfg.Save();
         AppSettings.Invalidate();
         if (_morningAudioText is not null) _morningAudioText.Text = dev.Name;
+    }
+
+    private void OnMorningAudioClear()
+    {
+        var cfg = AppSettings.Current;
+        cfg.Morning.TargetAudioId    = "";
+        cfg.Morning.TargetAudioLabel = "";
+        cfg.Save();
+        AppSettings.Invalidate();
+        if (_morningAudioText is not null) _morningAudioText.Text = "Select...";
     }
 
     // ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ Slider helpers ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬
@@ -2424,12 +2448,19 @@ public partial class PopupWindow : Window
     {
         if (_prayerCountryText is null) return;
         var cfg = AppSettings.Current.Prayer;
-        _prayerCountryText.Text = cfg.Country;
+        _prayerCountryText.Text = string.IsNullOrEmpty(cfg.Country) ? "Select" : cfg.Country;
 
         if (_prayerCityText is null) return;
-        var preset = PrayerCountryPresets.FindByCity(cfg.Country, cfg.City)
-                  ?? PrayerCountryPresets.ForCountry(cfg.Country).FirstOrDefault();
-        _prayerCityText.Text = preset is not null ? PrayerCountryPresets.CityLabel(preset) : cfg.City;
+        if (string.IsNullOrEmpty(cfg.City))
+        {
+            _prayerCityText.Text = "Select";
+        }
+        else
+        {
+            var preset = PrayerCountryPresets.FindByCity(cfg.Country, cfg.City)
+                      ?? PrayerCountryPresets.ForCountry(cfg.Country).FirstOrDefault();
+            _prayerCityText.Text = preset is not null ? PrayerCountryPresets.CityLabel(preset) : cfg.City;
+        }
 
         if (_prayerMethodText is not null)
             _prayerMethodText.Text = PrayerCalcMethods.NameFor(cfg.CalcMethod);
@@ -2437,10 +2468,12 @@ public partial class PopupWindow : Window
 
     private void ShowPrayerCountryDropdown(Border anchor)
     {
-        var names   = PrayerCountryPresets.Countries.ToList();
+        // Index 0 = "Select" (none) so the location can be left unset / reset.
+        var names   = new List<string> { "Select" };
+        names.AddRange(PrayerCountryPresets.Countries);
         var current = AppSettings.Current.Prayer.Country;
-        int selIdx  = names.IndexOf(current);
-        if (selIdx < 0) selIdx = 0;
+        int found   = PrayerCountryPresets.Countries.ToList().IndexOf(current);
+        int selIdx  = found < 0 ? 0 : found + 1;
 
         var screenPt = anchor.PointToScreen(new Point(0, anchor.ActualHeight + 2));
         var drop = new DropdownWindow(names, selIdx, screenPt, (int)anchor.ActualWidth)
@@ -2449,7 +2482,11 @@ public partial class PopupWindow : Window
         };
 
         _actionInProgress = true;
-        drop.Selected += idx => OnPrayerCountrySelect(names[idx]);
+        drop.Selected += idx =>
+        {
+            if (idx <= 0) OnPrayerLocationClear();   // also clears City (it depends on Country)
+            else          OnPrayerCountrySelect(names[idx]);
+        };
         drop.Closed   += (_, _) => _actionInProgress = false;
         drop.Show();
     }
@@ -2460,9 +2497,11 @@ public partial class PopupWindow : Window
         var presets = PrayerCountryPresets.ForCountry(country);
         if (presets.Count == 0) return;
 
-        var labels = presets.Select(PrayerCountryPresets.CityLabel).ToList();
-        int selIdx = presets.ToList().FindIndex(p => p.City == AppSettings.Current.Prayer.City);
-        if (selIdx < 0) selIdx = 0;
+        // Index 0 = "Select" (none); real cities follow at +1.
+        var labels = new List<string> { "Select" };
+        labels.AddRange(presets.Select(PrayerCountryPresets.CityLabel));
+        int found  = presets.ToList().FindIndex(p => p.City == AppSettings.Current.Prayer.City);
+        int selIdx = found < 0 ? 0 : found + 1;
 
         var screenPt = anchor.PointToScreen(new Point(0, anchor.ActualHeight + 2));
         var drop = new DropdownWindow(labels, selIdx, screenPt, (int)anchor.ActualWidth)
@@ -2471,7 +2510,11 @@ public partial class PopupWindow : Window
         };
 
         _actionInProgress = true;
-        drop.Selected += idx => OnPrayerCitySelect(presets[idx]);
+        drop.Selected += idx =>
+        {
+            if (idx <= 0) OnPrayerCityClear();
+            else          OnPrayerCitySelect(presets[idx - 1]);
+        };
         drop.Closed   += (_, _) => _actionInProgress = false;
         drop.Show();
     }
@@ -2542,11 +2585,51 @@ public partial class PopupWindow : Window
         ReinitPrayerModule();
     }
 
+    // Reset the prayer location to unset ("Select"). Clears both Country and City since the
+    // city list depends on the country; the card then shows its "Set up in Settings" state.
+    private void OnPrayerLocationClear()
+    {
+        var cfg = AppSettings.Current;
+        cfg.Prayer.Country = "";
+        cfg.Prayer.City    = "";
+        cfg.Save();
+        AppSettings.Invalidate();
+        UpdatePrayerBtnStates();
+        ReinitPrayerModule();
+    }
+
+    private void OnPrayerCityClear()
+    {
+        var cfg = AppSettings.Current;
+        cfg.Prayer.City = "";
+        cfg.Save();
+        AppSettings.Invalidate();
+        UpdatePrayerBtnStates();
+        ReinitPrayerModule();
+    }
+
     private void ReinitPrayerModule()
     {
         try
         {
             _prayerModule?.Dispose();
+            _prayerModule = null;
+
+            // Country/City unset → show the setup hint instead of calculating.
+            var p = AppSettings.Current.Prayer;
+            if (string.IsNullOrEmpty(p.Country) || string.IsNullOrEmpty(p.City))
+            {
+                PrayerStatus.SetResourceReference(TextBlock.ForegroundProperty, "DimBrush");
+                PrayerStatus.Text          = "Set up in Settings";
+                PrayerCountdown.Text       = "";
+                PrayerCountdown.Visibility = Visibility.Collapsed;
+                _latestPrayerStatus        = "Set up in Settings";
+                _latestPrayerCountdown     = "";
+                WritePrayerStatusJson();
+                return;
+            }
+
+            PrayerStatus.SetResourceReference(TextBlock.ForegroundProperty, "AmberBrush");
             PrayerStatus.Text          = "Loading...";
             PrayerCountdown.Text       = "";
             PrayerCountdown.Visibility = Visibility.Collapsed;
@@ -2576,15 +2659,25 @@ public partial class PopupWindow : Window
         _devices = AudioManager.GetRenderDevices();
         var s = AppSettings.Current;
 
+        // Keep a saved-but-currently-absent device (e.g. unplugged) selectable so closing
+        // Settings doesn't silently clear it just because it's not enumerated right now.
+        EnsureDeviceListed(s.Device1Id, s.Device1Label);
+        EnsureDeviceListed(s.Device2Id, s.Device2Label);
+
         _sel1 = _devices.FindIndex(d => d.Id == s.Device1Id);
         _sel2 = _devices.FindIndex(d => d.Id == s.Device2Id);
 
-        if (_sel1 < 0 && _devices.Count > 0) _sel1 = 0;
-        if (_sel2 < 0 && _devices.Count > 1) _sel2 = 1;
-
-        // Audio section may be collapsed (controls not built) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ guard the refs.
+        // No auto-select: an unset slot stays on "Select" so the Audio card shows its
+        // "Set up in Settings" state until the user actually picks both devices.
+        // Audio section may be collapsed (controls not built) — guard the refs.
         if (_dropText1 is not null) _dropText1.Text = _sel1 >= 0 ? _devices[_sel1].Name : "Select...";
         if (_dropText2 is not null) _dropText2.Text = _sel2 >= 0 ? _devices[_sel2].Name : "Select...";
+    }
+
+    private void EnsureDeviceListed(string id, string label)
+    {
+        if (!string.IsNullOrEmpty(id) && !_devices.Any(d => d.Id == id))
+            _devices.Add((id, string.IsNullOrEmpty(label) ? id : label));
     }
 
     private void ShowDropdown(int deviceNum, Border anchor)
@@ -2592,10 +2685,14 @@ public partial class PopupWindow : Window
         if (_devices.Count == 0) return;
 
         int currentSel = deviceNum == 1 ? _sel1 : _sel2;
-        var names      = _devices.Select(d => d.Name).ToList();
+        // Index 0 is a "Select" (none) entry so the user can leave a slot unconfigured or
+        // reset it back; real devices follow at +1.
+        var names      = new List<string> { "Select" };
+        names.AddRange(_devices.Select(d => d.Name));
+        int displaySel = currentSel < 0 ? 0 : currentSel + 1;
         var screenPt   = anchor.PointToScreen(new Point(0, anchor.ActualHeight + 2));
 
-        var drop = new DropdownWindow(names, currentSel, screenPt, (int)anchor.ActualWidth)
+        var drop = new DropdownWindow(names, displaySel, screenPt, (int)anchor.ActualWidth)
         {
             Owner = this,
         };
@@ -2603,7 +2700,8 @@ public partial class PopupWindow : Window
         _actionInProgress = true;
         drop.Selected += idx =>
         {
-            if (deviceNum == 1) _sel1 = idx; else _sel2 = idx;
+            int real = idx <= 0 ? -1 : idx - 1;   // 0 = "Select" (none)
+            if (deviceNum == 1) _sel1 = real; else _sel2 = real;
             if (_dropText1 is not null) _dropText1.Text = _sel1 >= 0 ? _devices[_sel1].Name : "Select...";
             if (_dropText2 is not null) _dropText2.Text = _sel2 >= 0 ? _devices[_sel2].Name : "Select...";
         };
@@ -2616,21 +2714,21 @@ public partial class PopupWindow : Window
     // Returns false (and shows error) if validation fails, so the panel stays open.
     private bool TrySaveSettings()
     {
-        if (_sel1 < 0 || _sel2 < 0) return true; // nothing selected yet ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â just close
-        if (_sel1 == _sel2)
+        // (unset slots are saved as cleared below — no early return) // nothing selected yet ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â just close
+        // Two REAL devices that are identical is invalid; everything else — including one or
+        // both left on "Select" — is allowed and saved so the Audio card shows its setup state.
+        if (_sel1 >= 0 && _sel2 >= 0 && _sel1 == _sel2)
         {
             MessageBox.Show("Device 1 and Device 2 must be different.", "PC Companion",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
 
-        var d1  = _devices[_sel1];
-        var d2  = _devices[_sel2];
         var cur = AppSettings.Current;
-        cur.Device1Id    = d1.Id;
-        cur.Device1Label = d1.Name;
-        cur.Device2Id    = d2.Id;
-        cur.Device2Label = d2.Name;
+        cur.Device1Id    = _sel1 >= 0 ? _devices[_sel1].Id   : "";
+        cur.Device1Label = _sel1 >= 0 ? _devices[_sel1].Name : "";
+        cur.Device2Id    = _sel2 >= 0 ? _devices[_sel2].Id   : "";
+        cur.Device2Label = _sel2 >= 0 ? _devices[_sel2].Name : "";
         cur.Save();
         AppSettings.Invalidate();
         RefreshState();
