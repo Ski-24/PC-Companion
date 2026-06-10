@@ -171,6 +171,7 @@ public partial class App
         catch { /* best-effort */ }
         _tray?.Dispose();
         _mutex?.Dispose();
+        BackgroundSoundPlayer.Dispose();   // release the audio device / stop the loop
         base.OnExit(e);
     }
 }

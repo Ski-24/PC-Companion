@@ -68,6 +68,8 @@ class AppSettings
     public bool   BrightnessSliderEnabled { get; set; } = true;
     public bool   SdrSliderEnabled        { get; set; } = true;
     public bool   AutoHdrEnabled          { get; set; } = true;
+    public string BackgroundSoundFile     { get; set; } = "";   // user-supplied loop file ("" = unconfigured)
+    public double BackgroundSoundVolume   { get; set; } = 0.5;  // 0.0–1.0
     public PrayerConfig Prayer            { get; set; } = new();
     public CouchModeConfig Couch          { get; set; } = new();
     public MorningModeConfig Morning      { get; set; } = new();
@@ -76,7 +78,8 @@ class AppSettings
         new CardConfig { Id = "Gopher",  Visible = true  },
         new CardConfig { Id = "Audio",   Visible = true  },
         new CardConfig { Id = "Display", Visible = true  },
-        new CardConfig { Id = "Prayer",  Visible = false },
+        new CardConfig { Id = "Prayer",  Visible = true  },
+        new CardConfig { Id = "Background", Visible = true },
     };
 
     private static readonly string _path = Path.Combine(AppPaths.Config, "settings.json");

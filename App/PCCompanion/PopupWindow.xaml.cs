@@ -37,6 +37,7 @@ public partial class PopupWindow : Window
     private bool _brightnessCapturing;
     private bool _sdrCapturing;
     private bool _dimCapturing;
+    private bool _bgVolCapturing;
     private bool _sceneInProgress;
     // Software-dim reveal: the Dim slider shows whenever hardware brightness is at 0
     // (HDR off); raising brightness back above 0 clears the dim and re-hides it.
@@ -114,6 +115,7 @@ public partial class PopupWindow : Window
         ["Audio"]   = 70,
         ["Display"] = 100,
         ["Prayer"]  = 80,
+        ["Background"] = 100,
     };
     private Dictionary<string, Border> _cardBorders = null!;
 
@@ -135,6 +137,9 @@ public partial class PopupWindow : Window
         DimSlider.PreviewMouseLeftButtonDown        += OnDimSliderDown;
         DimSlider.PreviewMouseMove                  += OnDimSliderMove;
         DimSlider.PreviewMouseLeftButtonUp          += OnDimSliderUp;
+        BackgroundVolSlider.PreviewMouseLeftButtonDown += OnBackgroundVolSliderDown;
+        BackgroundVolSlider.PreviewMouseMove           += OnBackgroundVolSliderMove;
+        BackgroundVolSlider.PreviewMouseLeftButtonUp   += OnBackgroundVolSliderUp;
 
         _cardBorders = new Dictionary<string, Border>
         {
@@ -142,12 +147,16 @@ public partial class PopupWindow : Window
             ["Audio"]   = AudioCard,
             ["Display"] = DisplayCard,
             ["Prayer"]  = PrayerCard,
+            ["Background"] = BackgroundCard,
         };
         LayoutCards();
 
         _suppressSliders = true;
         SdrSlider.Value = AppSettings.Current.SdrBrightness;
         SdrValueLabel.Text = $"{SdrSlider.Value:F1}";
+        int bgVol = (int)Math.Round(AppSettings.Current.BackgroundSoundVolume * 100);
+        BackgroundVolSlider.Value = bgVol;
+        BackgroundVolValueLabel.Text = $"{bgVol}%";
         _suppressSliders = false;
 
         IsVisibleChanged += OnIsVisibleChanged;
@@ -480,6 +489,7 @@ public partial class PopupWindow : Window
         if (_brightnessCapturing) { _brightnessCapturing = false; BrightnessSlider.ReleaseMouseCapture(); }
         if (_sdrCapturing)        { _sdrCapturing        = false; SdrSlider.ReleaseMouseCapture(); }
         if (_dimCapturing)        { _dimCapturing        = false; DimSlider.ReleaseMouseCapture(); }
+        if (_bgVolCapturing)      { _bgVolCapturing      = false; BackgroundVolSlider.ReleaseMouseCapture(); }
 
         if (_editMode) ExitEditMode();
 
@@ -557,7 +567,45 @@ public partial class PopupWindow : Window
         Activate();
     }
 
+    private void OnBackgroundClick(object sender, MouseButtonEventArgs e)
+    {
+        if (_editMode) { e.Handled = true; return; }
+        e.Handled = true;
+        var file = AppSettings.Current.BackgroundSoundFile;
+        // Toggling off is always allowed; toggling on needs a valid file (mirrors the Audio card).
+        if (!BackgroundSoundPlayer.IsPlaying && (string.IsNullOrWhiteSpace(file) || !File.Exists(file)))
+        {
+            MessageBox.Show("Choose a background sound file in Settings first.",
+                "PC Companion", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        DoToggleBackground();
+        Activate();
+    }
+
     // ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ Shared actions (UI buttons + CLI/Stream Deck commands) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬
+
+    // Play/pause the looping background sound. Playback is independent of the popup's
+    // visibility (it keeps looping after the popup closes).
+    private void DoToggleBackground()
+    {
+        _actionInProgress = true;
+        try
+        {
+            if (BackgroundSoundPlayer.IsPlaying)
+            {
+                BackgroundSoundPlayer.Pause();
+            }
+            else
+            {
+                var cfg = AppSettings.Current;
+                BackgroundSoundPlayer.Play(cfg.BackgroundSoundFile, (float)cfg.BackgroundSoundVolume);
+            }
+            RefreshState();
+        }
+        catch (Exception ex) { Logger.Log($"DoToggleBackground: {ex.Message}"); }
+        finally { _actionInProgress = false; }
+    }
 
     private void DoToggleGopher()
     {
@@ -730,6 +778,28 @@ public partial class PopupWindow : Window
             AudioStatus.Text       = Short(cfg.Device1Label);
             AudioStatus.Foreground = (Brush)res["PurpBrush"];
             AudioBtn.Text          = Short(cfg.Device2Label);
+        }
+
+        // Background sound card. Not set up until a valid file is chosen — mirror the Audio
+        // card's dim "Set up in Settings" state. Otherwise reflect play/pause state.
+        bool bgConfigured = !string.IsNullOrWhiteSpace(cfg.BackgroundSoundFile)
+                            && File.Exists(cfg.BackgroundSoundFile);
+        if (!bgConfigured)
+        {
+            BackgroundStatus.Text       = "Set up in Settings";
+            BackgroundStatus.Foreground = (Brush)res["DimBrush"];
+            BackgroundBtn.Text          = "Play";
+            BackgroundCard.Opacity      = 0.55;
+            BackgroundCard.ToolTip      = "Choose a background sound file in Settings first.";
+        }
+        else
+        {
+            bool playing = BackgroundSoundPlayer.IsPlaying;
+            BackgroundCard.Opacity      = 1.0;
+            BackgroundCard.ToolTip      = null;
+            BackgroundStatus.Text       = playing ? "Playing" : "Paused";
+            BackgroundStatus.Foreground = playing ? (Brush)res["GoodBrush"] : (Brush)res["BadBrush"];
+            BackgroundBtn.Text          = playing ? "Pause" : "Play";
         }
 
         // HdrStatus/HdrBtn are pre-populated by ShowPopup() before the window is shown,
@@ -1779,6 +1849,43 @@ public partial class PopupWindow : Window
         e.Handled = true;
     }
 
+    // ── Background sound volume slider ───────────────────────────────────────────────────
+    // Updates loudness live (0–100 → 0.0–1.0) and persists the value so it survives restarts.
+    private void OnBackgroundVolChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_suppressSliders) return;
+        int pct = (int)Math.Round(e.NewValue);
+        BackgroundVolValueLabel.Text = $"{pct}%";
+        float vol = pct / 100f;
+        BackgroundSoundPlayer.SetVolume(vol);
+        var cfg = AppSettings.Current;
+        cfg.BackgroundSoundVolume = vol;
+        cfg.Save();
+    }
+
+    private void OnBackgroundVolSliderDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_suppressSliders) return;
+        _bgVolCapturing = true;
+        BackgroundVolSlider.CaptureMouse();
+        BackgroundVolSlider.Value = SliderValueFromMouse(BackgroundVolSlider, e);
+        e.Handled = true;
+    }
+
+    private void OnBackgroundVolSliderMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_bgVolCapturing || e.LeftButton != MouseButtonState.Pressed) return;
+        BackgroundVolSlider.Value = SliderValueFromMouse(BackgroundVolSlider, e);
+    }
+
+    private void OnBackgroundVolSliderUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_bgVolCapturing) return;
+        _bgVolCapturing = false;
+        BackgroundVolSlider.ReleaseMouseCapture();
+        e.Handled = true;
+    }
+
     // Stream Deck Dim dial entry point: set the software dim overlay directly, 0–100.
     private Task ApplyDimValue(double value)
     {
@@ -2075,6 +2182,40 @@ public partial class PopupWindow : Window
         }
         y += 6;
 
+        // Background Sound
+        Header("Background", "Background Sound");
+        if (Exp("Background"))
+        {
+            Add(RowLabel("Sound file", y + 7));
+            var bgFile = AppSettings.Current.BackgroundSoundFile;
+            var bgFileText = new TextBlock
+            {
+                Text                = string.IsNullOrWhiteSpace(bgFile) ? "Choose file…" : Path.GetFileName(bgFile),
+                FontFamily          = new FontFamily("Segoe UI"),
+                FontSize            = 12,
+                FontWeight          = FontWeights.Bold,
+                VerticalAlignment   = VerticalAlignment.Center,
+                Margin              = new Thickness(10, 0, 10, 0),
+                TextTrimming        = TextTrimming.CharacterEllipsis,
+            };
+            bgFileText.SetResourceReference(ForegroundProperty, "TextBrush");
+            var bgFileBtn = new Border
+            {
+                Width        = 250,
+                Height       = 30,
+                CornerRadius = new CornerRadius(10),
+                Cursor       = Cursors.Hand,
+                Child        = bgFileText,
+            };
+            bgFileBtn.SetResourceReference(BackgroundProperty, "BtnBrush");
+            bgFileBtn.MouseLeftButtonDown += (_, ev) => { ev.Handled = true; ChooseBackgroundSoundFile(); };
+            Canvas.SetLeft(bgFileBtn, 94);
+            Canvas.SetTop(bgFileBtn, y);
+            Add(bgFileBtn);
+            y += 42;
+        }
+        y += 6;
+
         // Modes (Couch + Morning)
         Header("Modes", "Modes");
         if (Exp("Modes"))
@@ -2257,9 +2398,11 @@ public partial class PopupWindow : Window
 
     private static void EnsureAllCards(List<CardConfig> cards)
     {
+        // New/unknown cards default to VISIBLE so a freshly-added card shows up; the user can
+        // hide it in Edit mode. (Cards already in the list keep whatever Visible the user chose.)
         foreach (var id in CardHeights.Keys)
             if (!cards.Any(c => c.Id == id))
-                cards.Add(new CardConfig { Id = id, Visible = false });
+                cards.Add(new CardConfig { Id = id, Visible = true });
     }
 
     private void BuildSliderToggleRow(string label, double y, bool enabled, Action onClick)
@@ -2556,6 +2699,29 @@ public partial class PopupWindow : Window
         AppSettings.Invalidate();
         ReinitPrayerModule();
         RefreshSettingsPanel();
+    }
+
+    // Picks the audio file the Background Sound card loops. Stored in settings so the choice
+    // persists and is overridable; nothing is bundled with the app.
+    private void ChooseBackgroundSoundFile()
+    {
+        var cfg = AppSettings.Current;
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title            = "Choose a background sound file",
+            Filter           = "Audio files (*.mp3;*.wav)|*.mp3;*.wav|All files (*.*)|*.*",
+            CheckFileExists  = true,
+        };
+        if (!string.IsNullOrWhiteSpace(cfg.BackgroundSoundFile) && File.Exists(cfg.BackgroundSoundFile))
+            dlg.InitialDirectory = Path.GetDirectoryName(cfg.BackgroundSoundFile);
+
+        if (dlg.ShowDialog(this) != true) return;
+
+        cfg.BackgroundSoundFile = dlg.FileName;
+        cfg.Save();
+        AppSettings.Invalidate();
+        RefreshSettingsPanel();
+        RefreshState();
     }
 
     private void OnPrayerCountrySelect(string countryName)
@@ -2872,6 +3038,12 @@ public partial class PopupWindow : Window
         "Some docks/adapters may block DDC/CI. " +
         "SDR Balance is app-controlled and may not exactly mirror the Windows Settings slider.";
 
+    private const string HelpBackground =
+        "Loops a background sound file (ambience, white noise, rain, fan, etc.) on repeat. " +
+        "Choose your audio file (MP3 or WAV) in Settings, then press Play. " +
+        "Use the Volume slider to set the loudness independently of the Windows volume. " +
+        "Playback keeps looping even after you close this popup; press Pause to stop.";
+
     private const string HelpPrayer =
         "Prayer times are calculated offline as estimates. " +
         "The app calculates prayer time internally, then applies your iqama offsets. " +
@@ -2884,6 +3056,7 @@ public partial class PopupWindow : Window
         AttachHelp(AudioHelp,  HelpAudio);
         AttachHelp(HdrHelp,    HelpHdr);
         AttachHelp(PrayerHelp, HelpPrayer);
+        AttachHelp(BackgroundHelp, HelpBackground);
 
         HelpPopupBorder.MouseEnter += (_, _) => _helpHideTimer?.Stop();
         HelpPopupBorder.MouseLeave += (_, _) => StartHelpHideDelay();
@@ -2954,7 +3127,7 @@ public partial class PopupWindow : Window
         HideHelp();
 
         // ? buttons are irrelevant and distracting in edit mode
-        foreach (var hb in new[] { GopherHelp, AudioHelp, HdrHelp, PrayerHelp })
+        foreach (var hb in new[] { GopherHelp, AudioHelp, HdrHelp, PrayerHelp, BackgroundHelp })
             hb.Visibility = Visibility.Collapsed;
 
         LayoutCardsForEdit();    // show ALL cards (including hidden ones, to allow restoring)
@@ -2968,7 +3141,7 @@ public partial class PopupWindow : Window
         EditModeText.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
         EditModeText.Text = "Edit";
 
-        foreach (var hb in new[] { GopherHelp, AudioHelp, HdrHelp, PrayerHelp })
+        foreach (var hb in new[] { GopherHelp, AudioHelp, HdrHelp, PrayerHelp, BackgroundHelp })
             hb.Visibility = Visibility.Visible;
 
         RemoveEditOverlays();
@@ -3005,6 +3178,7 @@ public partial class PopupWindow : Window
         "Audio"   => (240, 22),
         "Display" => (240, 15),
         "Prayer"  => (150, 27),
+        "Background" => (240, 15),
         _         => (240, 22),
     };
 
