@@ -9,7 +9,8 @@ sealed class TrayManager : IDisposable
     private readonly PopupWindow _popup;
     private bool _suppressShow;
     private DiagnosticsWindow? _diag;
-    private UpdateService.UpdateInfo? _pendingUpdate;   // set when a startup check finds one
+    private UpdateService.UpdateInfo? _pendingUpdate;   // set when a check finds one
+    private DateTimeOffset _lastUpdateCheck = DateTimeOffset.MinValue;
 
     public TrayManager(PopupWindow popup)
     {
@@ -37,7 +38,11 @@ sealed class TrayManager : IDisposable
 
     // Background check at startup: silent if up-to-date or offline, a tray balloon if an
     // update is available (clicking it starts the one-click install).
-    public void StartupUpdateCheck() => CheckForUpdates(interactive: false);
+    public void StartupUpdateCheck()
+    {
+        _lastUpdateCheck = DateTimeOffset.UtcNow;
+        CheckForUpdates(interactive: false);
+    }
 
     // interactive (menu) → always report the outcome and prompt immediately.
     // non-interactive (startup) → only surface a balloon when an update exists.
@@ -57,13 +62,18 @@ sealed class TrayManager : IDisposable
                 }
                 else
                 {
+                    // New version vs. one we already flagged this session? Balloon only on a
+                    // change (so re-checks on every popup-open don't keep re-ballooning), but
+                    // always (re)show the persistent banner — ShowUpdateAvailable is idempotent.
+                    bool isNew = _pendingUpdate is null || _pendingUpdate.Version != result.Info!.Version;
                     _pendingUpdate = result.Info;
-                    // Persistent in-app notice at the top of the popup (no "check" button needed).
                     _popup.ShowUpdateAvailable(result.Info!);
-                    // Plus an immediate tray balloon, since the popup is usually closed at startup.
-                    _tray.BalloonTipTitle = "PC Companion update available";
-                    _tray.BalloonTipText  = $"Version {result.Info!.Tag} is ready. Click to install.";
-                    _tray.ShowBalloonTip(8000);
+                    if (isNew)
+                    {
+                        _tray.BalloonTipTitle = "PC Companion update available";
+                        _tray.BalloonTipText  = $"Version {result.Info!.Tag} is ready. Click to install.";
+                        _tray.ShowBalloonTip(8000);
+                    }
                 }
                 break;
 
@@ -136,7 +146,18 @@ sealed class TrayManager : IDisposable
 
     private void OnPopupVisibilityChanged(object? sender, DependencyPropertyChangedEventArgs e)
     {
-        if (_popup.IsVisible) return;
+        if (_popup.IsVisible)
+        {
+            // Re-check on open (throttled) so the banner appears even when a release happened
+            // after the one-shot startup check. Skipped while an update is already pending.
+            if (_pendingUpdate is null &&
+                DateTimeOffset.UtcNow - _lastUpdateCheck > TimeSpan.FromMinutes(30))
+            {
+                _lastUpdateCheck = DateTimeOffset.UtcNow;
+                CheckForUpdates(interactive: false);
+            }
+            return;
+        }
         _suppressShow = true;
         Task.Delay(300).ContinueWith(_ => _suppressShow = false);
     }
