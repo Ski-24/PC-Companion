@@ -99,10 +99,12 @@
             <!-- ── Update banner: hidden until a newer release is found (TrayManager startup
                  check → ShowUpdateAvailable). Click anywhere to download + install; the ✕
                  dismisses it for this session. Collapsed by default so layout is unchanged. ── -->
+            <!-- Fixed dark green (NOT the theme GoodBrush) so the white text/icon stay
+                 readable in every theme — the light themes' green washed the text out. -->
             <Border x:Name="UpdateBanner"
                     Visibility="Collapsed"
                     Margin="18,14,18,0" Height="42" CornerRadius="16"
-                    Background="{DynamicResource GoodBrush}"
+                    Background="#15803D"
                     Cursor="Hand"
                     MouseLeftButtonDown="OnUpdateBannerClick">
                 <Grid>
