@@ -37,7 +37,6 @@ public partial class PopupWindow : Window
     private bool _brightnessCapturing;
     private bool _sdrCapturing;
     private bool _dimCapturing;
-    private bool _bgVolCapturing;
     private bool _sceneInProgress;
     // Software-dim reveal: the Dim slider shows whenever hardware brightness is at 0
     // (HDR off); raising brightness back above 0 clears the dim and re-hides it.
@@ -68,8 +67,8 @@ public partial class PopupWindow : Window
     private IntPtr _mouseHook = IntPtr.Zero;
     private LowLevelMouseProc? _mouseHookProc; // kept alive while hooked (GC guard)
 
-    private TextBlock _dropText1 = null!, _dropText2 = null!;
-    private int _sel1 = -1, _sel2 = -1;
+    private TextBlock _dropText1 = null!, _dropText2 = null!, _dropText3 = null!;
+    private int _sel1 = -1, _sel2 = -1, _sel3 = -1;
     private List<(string Id, string Name)> _devices = new();
     private readonly Dictionary<string, (Ellipse Outer, Ellipse Inner)> _swatchEllipses = new();
     private TextBlock _prayerCountryText = null!;
@@ -115,7 +114,6 @@ public partial class PopupWindow : Window
         ["Audio"]   = 70,
         ["Display"] = 100,
         ["Prayer"]  = 80,
-        ["Background"] = 100,
     };
     private Dictionary<string, Border> _cardBorders = null!;
 
@@ -137,9 +135,6 @@ public partial class PopupWindow : Window
         DimSlider.PreviewMouseLeftButtonDown        += OnDimSliderDown;
         DimSlider.PreviewMouseMove                  += OnDimSliderMove;
         DimSlider.PreviewMouseLeftButtonUp          += OnDimSliderUp;
-        BackgroundVolSlider.PreviewMouseLeftButtonDown += OnBackgroundVolSliderDown;
-        BackgroundVolSlider.PreviewMouseMove           += OnBackgroundVolSliderMove;
-        BackgroundVolSlider.PreviewMouseLeftButtonUp   += OnBackgroundVolSliderUp;
 
         _cardBorders = new Dictionary<string, Border>
         {
@@ -147,16 +142,12 @@ public partial class PopupWindow : Window
             ["Audio"]   = AudioCard,
             ["Display"] = DisplayCard,
             ["Prayer"]  = PrayerCard,
-            ["Background"] = BackgroundCard,
         };
         LayoutCards();
 
         _suppressSliders = true;
         SdrSlider.Value = AppSettings.Current.SdrBrightness;
         SdrValueLabel.Text = $"{SdrSlider.Value:F1}";
-        int bgVol = (int)Math.Round(AppSettings.Current.BackgroundSoundVolume * 100);
-        BackgroundVolSlider.Value = bgVol;
-        BackgroundVolValueLabel.Text = $"{bgVol}%";
         _suppressSliders = false;
 
         IsVisibleChanged += OnIsVisibleChanged;
@@ -349,14 +340,6 @@ public partial class PopupWindow : Window
             return;
         }
 
-        if (TryParseCommandValue(command, "--set-bg-volume=", out double bgVolValue))
-        {
-            bool popupShown = ShowPopupForCommand();
-            ApplyBackgroundVolumeValue(bgVolValue);
-            if (popupShown) StartAutoHide(CommandAutoHideDelay);
-            return;
-        }
-
         // Show while the action runs (its RefreshState updates the live status), then close
         // immediately — Stream Deck toggles minimize as soon as the change is done rather than
         // lingering on the auto-hide timer. (The dial/value commands above keep the timer so
@@ -371,7 +354,6 @@ public partial class PopupWindow : Window
             case "--toggle-auto-hdr":   await DoToggleAutoHdr();  break;
             case "--toggle-couch-mode": await RunCouchToggle();   break;
             case "--toggle-morning-mode": await RunMorningToggle(); break;
-            case "--toggle-background": DoToggleBackground();     break;
             default: Logger.Log($"HandleCommand: unknown command '{command}'"); break;
         }
 
@@ -498,7 +480,6 @@ public partial class PopupWindow : Window
         if (_brightnessCapturing) { _brightnessCapturing = false; BrightnessSlider.ReleaseMouseCapture(); }
         if (_sdrCapturing)        { _sdrCapturing        = false; SdrSlider.ReleaseMouseCapture(); }
         if (_dimCapturing)        { _dimCapturing        = false; DimSlider.ReleaseMouseCapture(); }
-        if (_bgVolCapturing)      { _bgVolCapturing      = false; BackgroundVolSlider.ReleaseMouseCapture(); }
 
         if (_editMode) ExitEditMode();
 
@@ -550,9 +531,9 @@ public partial class PopupWindow : Window
         if (_editMode) { e.Handled = true; return; }
         e.Handled = true;
         var cfg = AppSettings.Current;
-        if (string.IsNullOrEmpty(cfg.Device1Id) || string.IsNullOrEmpty(cfg.Device2Id))
+        if (AudioManager.ConfiguredSlots(cfg).Count < 2)
         {
-            MessageBox.Show("Open Settings and choose your two audio devices first.",
+            MessageBox.Show("Open Settings and choose at least two audio devices first.",
                 "PC Companion", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -576,45 +557,7 @@ public partial class PopupWindow : Window
         Activate();
     }
 
-    private void OnBackgroundClick(object sender, MouseButtonEventArgs e)
-    {
-        if (_editMode) { e.Handled = true; return; }
-        e.Handled = true;
-        var file = AppSettings.Current.BackgroundSoundFile;
-        // Toggling off is always allowed; toggling on needs a valid file (mirrors the Audio card).
-        if (!BackgroundSoundPlayer.IsPlaying && (string.IsNullOrWhiteSpace(file) || !File.Exists(file)))
-        {
-            MessageBox.Show("Choose a background sound file in Settings first.",
-                "PC Companion", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-        DoToggleBackground();
-        Activate();
-    }
-
     // ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ Shared actions (UI buttons + CLI/Stream Deck commands) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬
-
-    // Play/pause the looping background sound. Playback is independent of the popup's
-    // visibility (it keeps looping after the popup closes).
-    private void DoToggleBackground()
-    {
-        _actionInProgress = true;
-        try
-        {
-            if (BackgroundSoundPlayer.IsPlaying)
-            {
-                BackgroundSoundPlayer.Pause();
-            }
-            else
-            {
-                var cfg = AppSettings.Current;
-                BackgroundSoundPlayer.Play(cfg.BackgroundSoundFile, (float)cfg.BackgroundSoundVolume);
-            }
-            RefreshState();
-        }
-        catch (Exception ex) { Logger.Log($"DoToggleBackground: {ex.Message}"); }
-        finally { _actionInProgress = false; }
-    }
 
     private void DoToggleGopher()
     {
@@ -627,7 +570,7 @@ public partial class PopupWindow : Window
     private async Task DoSwitchAudio()
     {
         var cfg = AppSettings.Current;
-        if (string.IsNullOrEmpty(cfg.Device1Id) || string.IsNullOrEmpty(cfg.Device2Id))
+        if (AudioManager.ConfiguredSlots(cfg).Count < 2)
         {
             Logger.Log("DoSwitchAudio: audio devices not configured ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â skipping");
             return;
@@ -751,64 +694,37 @@ public partial class PopupWindow : Window
         // ID compare would then mislabel the indicator.
         // Only Device 2 needs explicit detection now: Device 1 and "neither configured
         // device" both render as Device 1 (see below), so isDev1 isn't needed.
-        bool isDev2 = !string.IsNullOrEmpty(cfg.Device2Id) &&
-            (cur == cfg.Device2Id ||
-             (curDev.Name.Length > 0 && AudioManager.Normalize(curDev.Name) == AudioManager.Normalize(cfg.Device2Label)));
+        // The Audio card cycles through whichever device slots are configured (2 or 3).
+        // Slots are matched to the live default by ID first, then normalized friendly name.
+        var audioSlots = AudioManager.ConfiguredSlots(cfg);
 
-        // Not set up until BOTH devices are chosen. Mirror the Couch/Morning "Setup" state:
-        // dim the card, show a hint + tooltip. OnAudioClick/DoSwitchAudio already refuse to
-        // run while half-configured, so the card matches what the button will actually do.
-        bool audioConfigured = !string.IsNullOrEmpty(cfg.Device1Id) && !string.IsNullOrEmpty(cfg.Device2Id);
-        if (!audioConfigured)
+        // Not set up until at least two devices are chosen. Mirror the Couch/Morning "Setup"
+        // state: dim the card, show a hint + tooltip. OnAudioClick/DoSwitchAudio also refuse
+        // to run while under-configured, so the card matches what the button will do.
+        if (audioSlots.Count < 2)
         {
             AudioStatus.Text       = "Set up in Settings";
             AudioStatus.Foreground = (Brush)res["DimBrush"];
             AudioBtn.Text          = "Setup";
             AudioCard.Opacity      = 0.55;
-            AudioCard.ToolTip      = "Set up your two audio devices in Settings first.";
-        }
-        else if (isDev2)
-        {
-            AudioCard.Opacity      = 1.0;
-            AudioCard.ToolTip      = null;
-            AudioStatus.Text       = Short(cfg.Device2Label);
-            AudioStatus.Foreground = (Brush)res["BlueBrush"];
-            AudioBtn.Text          = Short(cfg.Device1Label);
+            AudioCard.ToolTip      = "Set up at least two audio devices in Settings first.";
         }
         else
         {
             AudioCard.Opacity      = 1.0;
             AudioCard.ToolTip      = null;
-            // On Device 1, OR on a device that's neither configured one (e.g. a scene's
-            // audio target like "A50 X Voice"). The card never surfaces that foreign
-            // target ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â it always reflects its own two devices, presenting the unknown
-            // case as Device 1. SwitchToNext treats the unknown case as Device 1 too, so
-            // the Switch button (ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ Device 2) stays truthful.
-            AudioStatus.Text       = Short(cfg.Device1Label);
-            AudioStatus.Foreground = (Brush)res["PurpBrush"];
-            AudioBtn.Text          = Short(cfg.Device2Label);
-        }
+            // Current slot, treating "none of the configured devices" (e.g. a scene's audio
+            // target) as the first slot — matching SwitchToNext so the button stays truthful.
+            int curSlot = AudioManager.CurrentSlot(cfg, cur, curDev.Name);
+            int curIdx  = curSlot > 0 ? audioSlots.IndexOf(curSlot) : 0;
+            if (curIdx < 0) curIdx = 0;
+            int shownSlot = audioSlots[curIdx];
+            int nextSlot  = audioSlots[(curIdx + 1) % audioSlots.Count];
 
-        // Background sound card. Not set up until a valid file is chosen — mirror the Audio
-        // card's dim "Set up in Settings" state. Otherwise reflect play/pause state.
-        bool bgConfigured = !string.IsNullOrWhiteSpace(cfg.BackgroundSoundFile)
-                            && File.Exists(cfg.BackgroundSoundFile);
-        if (!bgConfigured)
-        {
-            BackgroundStatus.Text       = "Set up in Settings";
-            BackgroundStatus.Foreground = (Brush)res["DimBrush"];
-            BackgroundBtn.Text          = "Play";
-            BackgroundCard.Opacity      = 0.55;
-            BackgroundCard.ToolTip      = "Choose a background sound file in Settings first.";
-        }
-        else
-        {
-            bool playing = BackgroundSoundPlayer.IsPlaying;
-            BackgroundCard.Opacity      = 1.0;
-            BackgroundCard.ToolTip      = null;
-            BackgroundStatus.Text       = playing ? "Playing" : "Paused";
-            BackgroundStatus.Foreground = playing ? (Brush)res["GoodBrush"] : (Brush)res["BadBrush"];
-            BackgroundBtn.Text          = playing ? "Pause" : "Play";
+            // Per-slot accent so the up-to-three devices stay visually distinct.
+            AudioStatus.Text       = Short(AudioManager.SlotLabel(cfg, shownSlot));
+            AudioStatus.Foreground = (Brush)res[shownSlot == 2 ? "BlueBrush" : shownSlot == 3 ? "AmberBrush" : "PurpBrush"];
+            AudioBtn.Text          = Short(AudioManager.SlotLabel(cfg, nextSlot));
         }
 
         // HdrStatus/HdrBtn are pre-populated by ShowPopup() before the window is shown,
@@ -976,17 +892,13 @@ public partial class PopupWindow : Window
             Directory.CreateDirectory(AppPaths.Config);
             var cfg = AppSettings.Current;
             var curDev = AudioManager.GetCurrentDefault();
-            bool isDevice1 = !string.IsNullOrEmpty(cfg.Device1Id) &&
-                (curDev.Id == cfg.Device1Id ||
-                 (curDev.Name.Length > 0 && AudioManager.Normalize(curDev.Name) == AudioManager.Normalize(cfg.Device1Label)));
-            bool isDevice2 = !string.IsNullOrEmpty(cfg.Device2Id) &&
-                (curDev.Id == cfg.Device2Id ||
-                 (curDev.Name.Length > 0 && AudioManager.Normalize(curDev.Name) == AudioManager.Normalize(cfg.Device2Label)));
-            if (!isDevice1 && !isDevice2)
-            {
-                isDevice2 = AudioManager.Normalize(audioLabel) == AudioManager.Normalize(cfg.Device2Label);
-                isDevice1 = !isDevice2;
-            }
+            // Which configured slot (1/2/3) is the live default, falling back to the card's
+            // displayed label and finally to slot 1 (matching what the Audio card shows).
+            int curSlot = AudioManager.CurrentSlot(cfg, curDev.Id, curDev.Name);
+            if (curSlot == 0 && AudioManager.Normalize(audioLabel) == AudioManager.Normalize(cfg.Device2Label)) curSlot = 2;
+            if (curSlot == 0 && !string.IsNullOrEmpty(cfg.Device3Id) &&
+                AudioManager.Normalize(audioLabel) == AudioManager.Normalize(cfg.Device3Label)) curSlot = 3;
+            if (curSlot == 0) curSlot = 1;
 
             var status = new
             {
@@ -996,15 +908,14 @@ public partial class PopupWindow : Window
                 autoHdr = autoHdr == AutoHdrService.State.Unknown ? (bool?)null : autoHdr == AutoHdrService.State.On,
                 couchMode = cfg.Couch.Active,
                 morningMode = cfg.Morning.Active,
-                audio = isDevice2 ? cfg.Device2Label : isDevice1 ? cfg.Device1Label : audioLabel,
-                audioDeviceIndex = isDevice2 ? 2 : 1,
+                audio = AudioManager.SlotLabel(cfg, curSlot),
+                audioDeviceIndex = curSlot,
                 device1 = cfg.Device1Label,
                 device2 = cfg.Device2Label,
+                device3 = cfg.Device3Label,
                 displayBrightness = brightness >= 0 ? brightness : (int?)null,
                 sdrBrightness = cfg.SdrBrightness,
                 dim = DimOverlay.Level,
-                backgroundVolume = (int)Math.Round(cfg.BackgroundSoundVolume * 100),
-                backgroundPlaying = BackgroundSoundPlayer.IsPlaying,
                 prayerStatus = _latestPrayerStatus,
                 prayerCountdown = _latestPrayerCountdown,
             };
@@ -1036,8 +947,7 @@ public partial class PopupWindow : Window
         catch (Exception ex) { Logger.Log($"WritePrayerStatusJson: {ex.Message}"); }
     }
 
-    private void WriteSliderStatusJson(int? displayBrightness = null, double? sdrBrightness = null, int? dim = null,
-                                       int? backgroundVolume = null)
+    private void WriteSliderStatusJson(int? displayBrightness = null, double? sdrBrightness = null, int? dim = null)
     {
         try
         {
@@ -1056,7 +966,6 @@ public partial class PopupWindow : Window
             if (displayBrightness.HasValue) status["displayBrightness"] = displayBrightness.Value;
             if (sdrBrightness.HasValue) status["sdrBrightness"] = sdrBrightness.Value;
             if (dim.HasValue) status["dim"] = dim.Value;
-            if (backgroundVolume.HasValue) status["backgroundVolume"] = backgroundVolume.Value;
             WriteStatusJsonAtomic(status.ToJsonString());
         }
         catch (Exception ex) { Logger.Log($"WriteSliderStatusJson: {ex.Message}"); }
@@ -1862,61 +1771,6 @@ public partial class PopupWindow : Window
         e.Handled = true;
     }
 
-    // ── Background sound volume slider ───────────────────────────────────────────────────
-    // Updates loudness live (0–100 → 0.0–1.0) and persists the value so it survives restarts.
-    private void OnBackgroundVolChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (_suppressSliders) return;
-        int pct = (int)Math.Round(e.NewValue);
-        BackgroundVolValueLabel.Text = $"{pct}%";
-        float vol = pct / 100f;
-        BackgroundSoundPlayer.SetVolume(vol);
-        var cfg = AppSettings.Current;
-        cfg.BackgroundSoundVolume = vol;
-        cfg.Save();
-        WriteSliderStatusJson(backgroundVolume: pct);
-    }
-
-    // Stream Deck background-volume dial entry point: set the loop volume directly, 0–100.
-    private void ApplyBackgroundVolumeValue(double value)
-    {
-        int pct = Math.Clamp((int)Math.Round(value), 0, 100);
-        _suppressSliders = true;
-        BackgroundVolSlider.Value    = pct;
-        BackgroundVolValueLabel.Text = $"{pct}%";
-        _suppressSliders = false;
-
-        float vol = pct / 100f;
-        BackgroundSoundPlayer.SetVolume(vol);
-        var cfg = AppSettings.Current;
-        cfg.BackgroundSoundVolume = vol;
-        cfg.Save();
-        WriteSliderStatusJson(backgroundVolume: pct);
-    }
-
-    private void OnBackgroundVolSliderDown(object sender, MouseButtonEventArgs e)
-    {
-        if (_suppressSliders) return;
-        _bgVolCapturing = true;
-        BackgroundVolSlider.CaptureMouse();
-        BackgroundVolSlider.Value = SliderValueFromMouse(BackgroundVolSlider, e);
-        e.Handled = true;
-    }
-
-    private void OnBackgroundVolSliderMove(object sender, System.Windows.Input.MouseEventArgs e)
-    {
-        if (!_bgVolCapturing || e.LeftButton != MouseButtonState.Pressed) return;
-        BackgroundVolSlider.Value = SliderValueFromMouse(BackgroundVolSlider, e);
-    }
-
-    private void OnBackgroundVolSliderUp(object sender, MouseButtonEventArgs e)
-    {
-        if (!_bgVolCapturing) return;
-        _bgVolCapturing = false;
-        BackgroundVolSlider.ReleaseMouseCapture();
-        e.Handled = true;
-    }
-
     // Stream Deck Dim dial entry point: set the software dim overlay directly, 0–100.
     private Task ApplyDimValue(double value)
     {
@@ -2121,7 +1975,7 @@ public partial class PopupWindow : Window
         SettingsPanel.Children.Clear();
         _swatchEllipses.Clear();
         // Reset control references; only expanded sections rebuild them.
-        _dropText1 = null!; _dropText2 = null!;
+        _dropText1 = null!; _dropText2 = null!; _dropText3 = null!;
         _prayerCountryText = null!; _prayerCityText = null!; _prayerMethodText = null;
         _couchAudioText = null; _morningAudioText = null;
 
@@ -2141,6 +1995,11 @@ public partial class PopupWindow : Window
             Add(RowLabel("Device 2", y + 7));
             var (btn2, txt2) = MakeDropButton(new Point(94, y), 2);
             _dropText2 = txt2; Add(btn2);
+            y += 46;
+            // Optional 3rd output — leave on "Select" for a plain 2-device toggle.
+            Add(RowLabel("Device 3", y + 7));
+            var (btn3, txt3) = MakeDropButton(new Point(94, y), 8);
+            _dropText3 = txt3; Add(btn3);
             y += 42;
         }
         y += 6;
@@ -2196,6 +2055,11 @@ public partial class PopupWindow : Window
             Canvas.SetTop(tfBtn, y);
             Add(tfBtn);
             y += 42;
+
+            // Official online times (Qatar only): fetch from the Ministry of Interior / Awqaf,
+            // falling back to the offline calculation when offline or for other countries.
+            BuildSliderToggleRow("Online Times (Qatar)", y, AppSettings.Current.Prayer.UseOnlineTimes,
+                () => ToggleOnlineTimes()); y += 32;
         }
         y += 6;
 
@@ -2210,40 +2074,6 @@ public partial class PopupWindow : Window
                 () => ToggleSlider("Sdr")); y += 28;
             BuildSliderToggleRow("Auto HDR", y, s.AutoHdrEnabled,
                 () => ToggleSlider("AutoHdr")); y += 32;
-        }
-        y += 6;
-
-        // Background Sound
-        Header("Background", "Background Sound");
-        if (Exp("Background"))
-        {
-            Add(RowLabel("Sound file", y + 7));
-            var bgFile = AppSettings.Current.BackgroundSoundFile;
-            var bgFileText = new TextBlock
-            {
-                Text                = string.IsNullOrWhiteSpace(bgFile) ? "Choose file…" : Path.GetFileName(bgFile),
-                FontFamily          = new FontFamily("Segoe UI"),
-                FontSize            = 12,
-                FontWeight          = FontWeights.Bold,
-                VerticalAlignment   = VerticalAlignment.Center,
-                Margin              = new Thickness(10, 0, 10, 0),
-                TextTrimming        = TextTrimming.CharacterEllipsis,
-            };
-            bgFileText.SetResourceReference(ForegroundProperty, "TextBrush");
-            var bgFileBtn = new Border
-            {
-                Width        = 250,
-                Height       = 30,
-                CornerRadius = new CornerRadius(10),
-                Cursor       = Cursors.Hand,
-                Child        = bgFileText,
-            };
-            bgFileBtn.SetResourceReference(BackgroundProperty, "BtnBrush");
-            bgFileBtn.MouseLeftButtonDown += (_, ev) => { ev.Handled = true; ChooseBackgroundSoundFile(); };
-            Canvas.SetLeft(bgFileBtn, 94);
-            Canvas.SetTop(bgFileBtn, y);
-            Add(bgFileBtn);
-            y += 42;
         }
         y += 6;
 
@@ -2732,27 +2562,16 @@ public partial class PopupWindow : Window
         RefreshSettingsPanel();
     }
 
-    // Picks the audio file the Background Sound card loops. Stored in settings so the choice
-    // persists and is overridable; nothing is bundled with the app.
-    private void ChooseBackgroundSoundFile()
+    // Toggles fetching official online prayer times (Qatar). Off → always use the offline
+    // calculation. Reinit picks the source up immediately.
+    private void ToggleOnlineTimes()
     {
         var cfg = AppSettings.Current;
-        var dlg = new Microsoft.Win32.OpenFileDialog
-        {
-            Title            = "Choose a background sound file",
-            Filter           = "Audio files (*.mp3;*.wav)|*.mp3;*.wav|All files (*.*)|*.*",
-            CheckFileExists  = true,
-        };
-        if (!string.IsNullOrWhiteSpace(cfg.BackgroundSoundFile) && File.Exists(cfg.BackgroundSoundFile))
-            dlg.InitialDirectory = Path.GetDirectoryName(cfg.BackgroundSoundFile);
-
-        if (dlg.ShowDialog(this) != true) return;
-
-        cfg.BackgroundSoundFile = dlg.FileName;
+        cfg.Prayer.UseOnlineTimes = !cfg.Prayer.UseOnlineTimes;
         cfg.Save();
         AppSettings.Invalidate();
+        ReinitPrayerModule();
         RefreshSettingsPanel();
-        RefreshState();
     }
 
     private void OnPrayerCountrySelect(string countryName)
@@ -2860,15 +2679,18 @@ public partial class PopupWindow : Window
         // Settings doesn't silently clear it just because it's not enumerated right now.
         EnsureDeviceListed(s.Device1Id, s.Device1Label);
         EnsureDeviceListed(s.Device2Id, s.Device2Label);
+        EnsureDeviceListed(s.Device3Id, s.Device3Label);
 
         _sel1 = _devices.FindIndex(d => d.Id == s.Device1Id);
         _sel2 = _devices.FindIndex(d => d.Id == s.Device2Id);
+        _sel3 = _devices.FindIndex(d => d.Id == s.Device3Id);
 
         // No auto-select: an unset slot stays on "Select" so the Audio card shows its
-        // "Set up in Settings" state until the user actually picks both devices.
+        // "Set up in Settings" state until the user actually picks two devices.
         // Audio section may be collapsed (controls not built) — guard the refs.
         if (_dropText1 is not null) _dropText1.Text = _sel1 >= 0 ? _devices[_sel1].Name : "Select...";
         if (_dropText2 is not null) _dropText2.Text = _sel2 >= 0 ? _devices[_sel2].Name : "Select...";
+        if (_dropText3 is not null) _dropText3.Text = _sel3 >= 0 ? _devices[_sel3].Name : "Select...";
     }
 
     private void EnsureDeviceListed(string id, string label)
@@ -2881,7 +2703,8 @@ public partial class PopupWindow : Window
     {
         if (_devices.Count == 0) return;
 
-        int currentSel = deviceNum == 1 ? _sel1 : _sel2;
+        // deviceNum 8 = the optional 3rd audio slot (1/2 are the first two).
+        int currentSel = deviceNum == 1 ? _sel1 : deviceNum == 2 ? _sel2 : _sel3;
         // Index 0 is a "Select" (none) entry so the user can leave a slot unconfigured or
         // reset it back; real devices follow at +1.
         var names      = new List<string> { "Select" };
@@ -2898,9 +2721,10 @@ public partial class PopupWindow : Window
         drop.Selected += idx =>
         {
             int real = idx <= 0 ? -1 : idx - 1;   // 0 = "Select" (none)
-            if (deviceNum == 1) _sel1 = real; else _sel2 = real;
+            if (deviceNum == 1) _sel1 = real; else if (deviceNum == 2) _sel2 = real; else _sel3 = real;
             if (_dropText1 is not null) _dropText1.Text = _sel1 >= 0 ? _devices[_sel1].Name : "Select...";
             if (_dropText2 is not null) _dropText2.Text = _sel2 >= 0 ? _devices[_sel2].Name : "Select...";
+            if (_dropText3 is not null) _dropText3.Text = _sel3 >= 0 ? _devices[_sel3].Name : "Select...";
         };
         drop.Closed += (_, _) => _actionInProgress = false;
         drop.Show();
@@ -2914,9 +2738,12 @@ public partial class PopupWindow : Window
         // (unset slots are saved as cleared below — no early return) // nothing selected yet ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â just close
         // Two REAL devices that are identical is invalid; everything else — including one or
         // both left on "Select" — is allowed and saved so the Audio card shows its setup state.
-        if (_sel1 >= 0 && _sel2 >= 0 && _sel1 == _sel2)
+        // No two REAL selected slots may be the same device. Any slot left on "Select" is fine.
+        if ((_sel1 >= 0 && _sel2 >= 0 && _sel1 == _sel2) ||
+            (_sel1 >= 0 && _sel3 >= 0 && _sel1 == _sel3) ||
+            (_sel2 >= 0 && _sel3 >= 0 && _sel2 == _sel3))
         {
-            MessageBox.Show("Device 1 and Device 2 must be different.", "PC Companion",
+            MessageBox.Show("Each audio device must be different.", "PC Companion",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return false;
         }
@@ -2926,6 +2753,8 @@ public partial class PopupWindow : Window
         cur.Device1Label = _sel1 >= 0 ? _devices[_sel1].Name : "";
         cur.Device2Id    = _sel2 >= 0 ? _devices[_sel2].Id   : "";
         cur.Device2Label = _sel2 >= 0 ? _devices[_sel2].Name : "";
+        cur.Device3Id    = _sel3 >= 0 ? _devices[_sel3].Id   : "";
+        cur.Device3Label = _sel3 >= 0 ? _devices[_sel3].Name : "";
         cur.Save();
         AppSettings.Invalidate();
         RefreshState();
@@ -3057,7 +2886,8 @@ public partial class PopupWindow : Window
         "For advanced help, check the Gopher360 GitHub page.";
 
     private const string HelpAudio =
-        "Switches the Windows default playback device between your configured outputs. " +
+        "Cycles the Windows default playback device through your configured outputs (two, or " +
+        "three if you set the optional Device 3 in Settings). " +
         "If switching stops working, the device name may have changed after a driver update, " +
         "reconnect, or Windows audio device rename. Re-select the devices in settings.";
 
@@ -3069,16 +2899,11 @@ public partial class PopupWindow : Window
         "Some docks/adapters may block DDC/CI. " +
         "SDR Balance is app-controlled and may not exactly mirror the Windows Settings slider.";
 
-    private const string HelpBackground =
-        "Loops a background sound file (ambience, white noise, rain, fan, etc.) on repeat. " +
-        "Choose your audio file (MP3 or WAV) in Settings, then press Play. " +
-        "Use the Volume slider to set the loudness independently of the Windows volume. " +
-        "Playback keeps looping even after you close this popup; press Pause to stop.";
-
     private const string HelpPrayer =
-        "Prayer times are calculated offline as estimates. " +
-        "The app calculates prayer time internally, then applies your iqama offsets. " +
-        "The main card shows iqama time, not adhan time. " +
+        "Shows the next prayer. It counts down to the adhan (call to prayer) first; once the " +
+        "adhan passes it counts down to that prayer's iqama. " +
+        "For Qatar, official times are fetched online (Ministry of Awqaf) when available, " +
+        "otherwise they're calculated offline. Iqama = adhan + your per-prayer offsets. " +
         "Adjust offsets to match your local mosque or timetable.";
 
     private void AttachHelpEvents()
@@ -3087,7 +2912,6 @@ public partial class PopupWindow : Window
         AttachHelp(AudioHelp,  HelpAudio);
         AttachHelp(HdrHelp,    HelpHdr);
         AttachHelp(PrayerHelp, HelpPrayer);
-        AttachHelp(BackgroundHelp, HelpBackground);
 
         HelpPopupBorder.MouseEnter += (_, _) => _helpHideTimer?.Stop();
         HelpPopupBorder.MouseLeave += (_, _) => StartHelpHideDelay();
@@ -3158,7 +2982,7 @@ public partial class PopupWindow : Window
         HideHelp();
 
         // ? buttons are irrelevant and distracting in edit mode
-        foreach (var hb in new[] { GopherHelp, AudioHelp, HdrHelp, PrayerHelp, BackgroundHelp })
+        foreach (var hb in new[] { GopherHelp, AudioHelp, HdrHelp, PrayerHelp })
             hb.Visibility = Visibility.Collapsed;
 
         LayoutCardsForEdit();    // show ALL cards (including hidden ones, to allow restoring)
@@ -3172,7 +2996,7 @@ public partial class PopupWindow : Window
         EditModeText.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
         EditModeText.Text = "Edit";
 
-        foreach (var hb in new[] { GopherHelp, AudioHelp, HdrHelp, PrayerHelp, BackgroundHelp })
+        foreach (var hb in new[] { GopherHelp, AudioHelp, HdrHelp, PrayerHelp })
             hb.Visibility = Visibility.Visible;
 
         RemoveEditOverlays();
@@ -3209,7 +3033,6 @@ public partial class PopupWindow : Window
         "Audio"   => (240, 22),
         "Display" => (240, 15),
         "Prayer"  => (150, 27),
-        "Background" => (240, 15),
         _         => (240, 22),
     };
 

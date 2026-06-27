@@ -32,7 +32,6 @@ public partial class App
                 case "--toggle-auto-hdr":
                 case "--toggle-couch-mode":
                 case "--toggle-morning-mode":
-                case "--toggle-background":
                     return a.ToLowerInvariant();
             }
 
@@ -40,8 +39,7 @@ public partial class App
                 a.StartsWith("--adjust-sdr=", StringComparison.OrdinalIgnoreCase) ||
                 a.StartsWith("--set-brightness=", StringComparison.OrdinalIgnoreCase) ||
                 a.StartsWith("--set-sdr=", StringComparison.OrdinalIgnoreCase) ||
-                a.StartsWith("--set-dim=", StringComparison.OrdinalIgnoreCase) ||
-                a.StartsWith("--set-bg-volume=", StringComparison.OrdinalIgnoreCase))
+                a.StartsWith("--set-dim=", StringComparison.OrdinalIgnoreCase))
                 return a.ToLowerInvariant();
         }
         return null;
@@ -173,7 +171,6 @@ public partial class App
         catch { /* best-effort */ }
         _tray?.Dispose();
         _mutex?.Dispose();
-        BackgroundSoundPlayer.Dispose();   // release the audio device / stop the loop
         base.OnExit(e);
     }
 }

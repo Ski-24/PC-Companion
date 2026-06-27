@@ -11,6 +11,11 @@ class PrayerConfig
     public bool   AsrHanafi  { get; set; } = false;
     public bool   Use24Hour  { get; set; } = false;   // false = 12-hour (6:15 PM), true = 24-hour (18:15)
 
+    // When true AND Country == "Qatar", fetch the official adhan times from the Qatar MOI
+    // (Awqaf) endpoint instead of calculating them. Falls back to the offline calculation
+    // when offline or for any non-Qatar country. Iqama is still adhan + the offsets below.
+    public bool   UseOnlineTimes { get; set; } = true;
+
     // Iqama offset (minutes after adhan) per prayer. Defaults match Qatar's official
     // published offsets (prayers.qa); other countries can differ per mosque.
     public int FajrOffset    { get; set; } = 25;

@@ -12,45 +12,36 @@ static class AudioManager
         string currentId = GetCurrentDefaultId();
         bool updated = false;
 
-        // Heal saved IDs: exact name match first, then normalized name (strips USB "N- " prefix).
-        // Also update the saved label when the actual device name differs.
-        if (!devices.Any(d => d.Id == s.Device1Id))
+        // Configured slots in cycle order (1, 2, and optionally 3). At least two are needed
+        // to switch between; the 3rd is optional, so this stays a 2-way toggle until it's set.
+        var slots = ConfiguredSlots(s);
+        if (slots.Count < 2) { Logger.Log("AudioManager: fewer than 2 devices configured — skipping"); return; }
+
+        // Heal saved IDs for each slot: exact name match first, then normalized name (strips
+        // USB "N- " prefix). Also refresh the saved label when the actual device name differs.
+        foreach (int n in slots)
         {
-            var m = FindByLabel(devices, s.Device1Label);
+            if (devices.Any(d => d.Id == SlotId(s, n))) continue;
+            var m = FindByLabel(devices, SlotLabel(s, n));
             if (m.Id != null)
             {
-                Logger.Log($"AudioManager: healed D1 '{s.Device1Label}' → '{m.Name}' [{Trunc(m.Id)}]");
-                s.Device1Id = m.Id; s.Device1Label = Norm(m.Name); updated = true;
-            }
-        }
-        if (!devices.Any(d => d.Id == s.Device2Id))
-        {
-            var m = FindByLabel(devices, s.Device2Label);
-            if (m.Id != null)
-            {
-                Logger.Log($"AudioManager: healed D2 '{s.Device2Label}' → '{m.Name}' [{Trunc(m.Id)}]");
-                s.Device2Id = m.Id; s.Device2Label = Norm(m.Name); updated = true;
+                Logger.Log($"AudioManager: healed D{n} '{SlotLabel(s, n)}' → '{m.Name}' [{Trunc(m.Id)}]");
+                SetSlotId(s, n, m.Id); SetSlotLabel(s, n, Norm(m.Name)); updated = true;
             }
         }
         if (updated) { s.Save(); AppSettings.Invalidate(); }
 
-        // Determine which configured device is currently active (ID, then normalized name)
-        bool onDevice1 = currentId == s.Device1Id;
-        bool onDevice2 = !onDevice1 && currentId == s.Device2Id;
-        if (!onDevice1 && !onDevice2)
-        {
-            var curName = Norm(devices.FirstOrDefault(d => d.Id == currentId).Name ?? "");
-            onDevice1 = curName != "" && curName == Norm(s.Device1Label);
-            onDevice2 = !onDevice1 && curName != "" && curName == Norm(s.Device2Label);
-        }
-        // Current default is neither configured device (e.g. a scene's audio target like
-        // "A50 X Voice"). Treat it as Device 1 so this stays a clean Device1↔Device2 toggle
-        // and the next switch lands on Device 2 — matching what the Audio card displays
-        // (it also presents the unknown case as Device 1).
-        if (!onDevice1 && !onDevice2) onDevice1 = true;
+        // Which configured slot is currently active (by ID, then normalized name)?
+        int curSlot = CurrentSlot(s, currentId, devices.FirstOrDefault(d => d.Id == currentId).Name ?? "");
+        // Current default is none of the configured devices (e.g. a scene's audio target like
+        // "A50 X Voice"): treat it as the first slot so the next switch lands on the 2nd —
+        // matching what the Audio card displays (it presents the unknown case the same way).
+        int curIdx = curSlot > 0 ? slots.IndexOf(curSlot) : 0;
+        if (curIdx < 0) curIdx = 0;
 
-        string targetLabel = onDevice1 ? s.Device2Label : s.Device1Label;
-        string targetId    = onDevice1 ? s.Device2Id    : s.Device1Id;
+        int targetSlot     = slots[(curIdx + 1) % slots.Count];
+        string targetLabel = SlotLabel(s, targetSlot);
+        string targetId    = SlotId(s, targetSlot);
 
         // Build candidate list: saved ID first, then any active endpoint matching by normalized name
         var candidates = new List<string>();
@@ -72,15 +63,60 @@ static class AudioManager
         if (workedId == null)
             throw new Exception($"No working endpoint found for '{targetLabel}'");
 
-        // Snap saved IDs to the endpoints that actually worked
+        // Snap saved IDs to the endpoints that actually worked: the slot we came from (if we
+        // matched one) gets the old default's ID, and the target slot gets the working ID.
         bool snap = false;
-        if (onDevice1  && currentId != s.Device1Id) { s.Device1Id = currentId; snap = true; }
-        if (onDevice2  && currentId != s.Device2Id) { s.Device2Id = currentId; snap = true; }
-        if (onDevice1  && workedId  != s.Device2Id) { s.Device2Id = workedId;  snap = true; }
-        if (!onDevice1 && workedId  != s.Device1Id) { s.Device1Id = workedId;  snap = true; }
+        if (curSlot > 0 && currentId != SlotId(s, curSlot)) { SetSlotId(s, curSlot, currentId); snap = true; }
+        if (workedId != SlotId(s, targetSlot))              { SetSlotId(s, targetSlot, workedId); snap = true; }
         if (snap) { s.Save(); AppSettings.Invalidate(); }
 
         Logger.Log($"AudioManager: switched to {targetLabel}");
+    }
+
+    // ── Audio slot helpers (Device 1/2/3) ────────────────────────────────────────
+    // The Audio card cycles through whichever slots are configured. Slot 3 is optional.
+
+    public static string SlotId(AppSettings s, int n) => n switch
+    {
+        1 => s.Device1Id, 2 => s.Device2Id, 3 => s.Device3Id, _ => "",
+    };
+    public static string SlotLabel(AppSettings s, int n) => n switch
+    {
+        1 => s.Device1Label, 2 => s.Device2Label, 3 => s.Device3Label, _ => "",
+    };
+    private static void SetSlotId(AppSettings s, int n, string id)
+    {
+        switch (n) { case 1: s.Device1Id = id; break; case 2: s.Device2Id = id; break; case 3: s.Device3Id = id; break; }
+    }
+    private static void SetSlotLabel(AppSettings s, int n, string label)
+    {
+        switch (n) { case 1: s.Device1Label = label; break; case 2: s.Device2Label = label; break; case 3: s.Device3Label = label; break; }
+    }
+
+    // Slots that have an ID configured, in cycle order. A slot counts as configured only
+    // when its endpoint ID is set (the label alone is a placeholder).
+    public static List<int> ConfiguredSlots(AppSettings s)
+    {
+        var list = new List<int>();
+        if (!string.IsNullOrEmpty(s.Device1Id)) list.Add(1);
+        if (!string.IsNullOrEmpty(s.Device2Id)) list.Add(2);
+        if (!string.IsNullOrEmpty(s.Device3Id)) list.Add(3);
+        return list;
+    }
+
+    // Which configured slot the given default endpoint maps to (1/2/3), or 0 if none.
+    // Matches by ID first, then by normalized friendly name (resilient to stale IDs).
+    public static int CurrentSlot(AppSettings s, string currentId, string currentName)
+    {
+        foreach (int n in ConfiguredSlots(s))
+        {
+            if (currentId == SlotId(s, n)) return n;
+        }
+        string cur = Norm(currentName);
+        if (cur.Length > 0)
+            foreach (int n in ConfiguredSlots(s))
+                if (cur == Norm(SlotLabel(s, n))) return n;
+        return 0;
     }
 
     // Exact name match first, then normalized name (strips USB "N- " prefix).

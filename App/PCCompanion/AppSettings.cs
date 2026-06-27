@@ -63,13 +63,15 @@ class AppSettings
     public string Device1Label { get; set; } = "Device 1";
     public string Device2Id    { get; set; } = "";
     public string Device2Label { get; set; } = "Device 2";
+    // Optional 3rd audio output. Leave blank for a plain 2-device toggle; set it to make the
+    // Audio card / switch cycle through three outputs (Device1 → Device2 → Device3 → …).
+    public string Device3Id    { get; set; } = "";
+    public string Device3Label { get; set; } = "";
     public string Theme        { get; set; } = "Ocean";
     public double SdrBrightness          { get; set; } = 3.0;
     public bool   BrightnessSliderEnabled { get; set; } = true;
     public bool   SdrSliderEnabled        { get; set; } = true;
     public bool   AutoHdrEnabled          { get; set; } = true;
-    public string BackgroundSoundFile     { get; set; } = "";   // user-supplied loop file ("" = unconfigured)
-    public double BackgroundSoundVolume   { get; set; } = 0.5;  // 0.0–1.0
     public PrayerConfig Prayer            { get; set; } = new();
     public CouchModeConfig Couch          { get; set; } = new();
     public MorningModeConfig Morning      { get; set; } = new();
@@ -79,7 +81,6 @@ class AppSettings
         new CardConfig { Id = "Audio",   Visible = true  },
         new CardConfig { Id = "Display", Visible = true  },
         new CardConfig { Id = "Prayer",  Visible = true  },
-        new CardConfig { Id = "Background", Visible = true },
     };
 
     private static readonly string _path = Path.Combine(AppPaths.Config, "settings.json");

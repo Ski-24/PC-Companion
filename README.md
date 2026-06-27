@@ -27,9 +27,10 @@ Every card has an in-app **( ? ) Help** button; the descriptions below mirror it
   cursor feels too fast or slow, tweak that config. (See the
   [Gopher360 GitHub page](https://github.com/Tylemagne/Gopher360) for advanced controls.)
 
-- **Audio** — switches the Windows default playback device between your two configured
-  outputs. If switching stops working, a device's name probably changed (driver update,
-  reconnect, or a Windows rename) — just re-select the devices in **Settings**.
+- **Audio** — cycles the Windows default playback device through your configured outputs.
+  Set **two** devices for a simple toggle, or add an optional **third** in **Settings** to
+  rotate through all three. If switching stops working, a device's name probably changed
+  (driver update, reconnect, or a Windows rename) — just re-select the devices in **Settings**.
 
 - **Display** — the HDR / display card:
   - **HDR** toggle and **Auto HDR** toggle.
@@ -45,10 +46,11 @@ Every card has an in-app **( ? ) Help** button; the descriptions below mirror it
     (or turning HDR on) clears it. Great for late-night use when 0% hardware brightness is
     still too bright. (Doesn't affect fullscreen-exclusive games, which bypass the desktop.)
 
-- **Prayer Times** — next prayer name + live countdown, **calculated offline** as estimates.
-  The app computes prayer times internally and then applies your **iqama offsets**, so the
-  card shows the *iqama* time (not the adhan time). Adjust the offsets to match your local
-  mosque or timetable. Per-country calculation presets are included.
+- **Prayer Times** — next prayer name + live countdown. It counts down to the **adhan**
+  (call to prayer) first; once the adhan passes it counts down to that prayer's **iqama**.
+  For **Qatar**, official times are fetched **online** from the Ministry of Awqaf when
+  available (toggleable in Settings), otherwise they're **calculated offline**; iqama =
+  adhan + your per-prayer **offsets**. Per-country calculation presets are included.
 
 - **Couch / Morning modes** — two configurable one-tap "scenes" that batch several actions
   and restore them on toggle-off (e.g. **Couch**: Gopher on, HDR off, dim brightness, switch

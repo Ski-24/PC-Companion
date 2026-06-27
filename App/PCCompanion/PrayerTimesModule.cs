@@ -5,6 +5,7 @@ namespace PCCompanion;
 class PrayerTimesModule : IDisposable
 {
     private readonly CalculatedPrayerProvider _calc;
+    private readonly MoiPrayerProvider?       _online;   // non-null only for Qatar + UseOnlineTimes
     private readonly TimeZoneInfo             _tz;
     private readonly bool                     _use24;
 
@@ -20,6 +21,12 @@ class PrayerTimesModule : IDisposable
         _calc   = new CalculatedPrayerProvider(cfg);
         _use24  = cfg.Use24Hour;
 
+        // Official online times are Qatar-only; everyone else (and Qatar with online off)
+        // uses the offline calculation.
+        if (cfg.UseOnlineTimes &&
+            string.Equals(cfg.Country, "Qatar", StringComparison.OrdinalIgnoreCase))
+            _online = new MoiPrayerProvider(cfg);
+
         // Resolve location timezone so times are compared in the prayer location's
         // local time, not the machine's local time.
         try { _tz = TimeZoneInfo.FindSystemTimeZoneById(cfg.Timezone); }
@@ -30,19 +37,26 @@ class PrayerTimesModule : IDisposable
         }
     }
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
-        try  { LoadCalculated(); }
+        try  { await LoadAsync(); }
         catch (Exception ex) { Logger.Log($"PrayerModule.Init: {ex.Message}"); }
         try  { StartTicker(); }
         catch (Exception ex) { Logger.Log($"PrayerModule.Init ticker: {ex.Message}"); }
-        return Task.CompletedTask;
     }
 
-    private void LoadCalculated()
+    private async Task LoadAsync()
     {
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _tz));
-        _today    = _calc.GetForDate(today);
+
+        // Prefer the official online times for today (Qatar); fall back to the calculation
+        // when offline / unavailable. Tomorrow is always calculated — it's only needed for
+        // the after-Isha "next is tomorrow's Fajr" line and the official endpoint is today-only.
+        PrayerDailyData? data = null;
+        if (_online is not null)
+            data = await _online.TryGetTodayAsync(today);
+
+        _today    = data ?? _calc.GetForDate(today);
         _tomorrow = _calc.GetForDate(today.AddDays(1));
     }
 
@@ -55,14 +69,18 @@ class PrayerTimesModule : IDisposable
         {
             Interval = TimeSpan.FromSeconds(30),
         };
-        _ticker.Tick += (_, _) =>
+        _ticker.Tick += async (_, _) =>
         {
             try
             {
-                // Reload when the calendar date rolls over in the prayer location's timezone
                 var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _tz));
-                if (today > DateOnly.Parse(_today?.Date ?? "2000-01-01"))
-                    LoadCalculated();
+
+                // Reload when the calendar date rolls over, OR keep retrying the online fetch
+                // if an earlier attempt fell back to the calculation (e.g. started offline).
+                bool dateRolled = today > DateOnly.Parse(_today?.Date ?? "2000-01-01");
+                bool onlineRetry = _online is not null && _today?.Source != "MOI Qatar";
+                if (dateRolled || onlineRetry)
+                    await LoadAsync();
 
                 FireUpdate();
             }
@@ -95,23 +113,30 @@ class PrayerTimesModule : IDisposable
 
         var now = TimeOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _tz));
 
-        PrayerEntry? next = _today.Prayers
-            .Where(p => TimeOnly.TryParse(p.Iqama, out var t) && t > now)
-            .FirstOrDefault();
-
-        if (next is not null)
+        // Walk today's prayers in order. For the first one still ahead of "now":
+        //   • before its adhan  → count down to the ADHAN
+        //   • adhan has passed but iqama hasn't → count down to the IQAMA (same prayer)
+        // Once a prayer's iqama has also passed, move to the next prayer.
+        foreach (var p in _today.Prayers)
         {
-            TimeOnly.TryParse(next.Iqama, out var iqamaTime);
-            int mins = MinutesUntil(now, iqamaTime);
-            return ($"{next.Name} Iqama  {Fmt(iqamaTime)}", FmtCountdown(mins));
+            if (TimeOnly.TryParse(p.Adhan, out var adhan) && now < adhan)
+            {
+                int mins = MinutesUntil(now, adhan);
+                return ($"{p.Name} Adhan  {Fmt(adhan)}", FmtCountdown(mins));
+            }
+            if (TimeOnly.TryParse(p.Iqama, out var iqama) && now < iqama)
+            {
+                int mins = MinutesUntil(now, iqama);
+                return ($"{p.Name} Iqama  {Fmt(iqama)}", FmtCountdown(mins));
+            }
         }
 
-        // All today's prayers have passed — show tomorrow's Fajr
+        // Everything today has passed — count down to tomorrow's Fajr adhan.
         var fajr = _tomorrow?.Prayers.FirstOrDefault(p => p.Name == "Fajr");
-        if (fajr is not null && TimeOnly.TryParse(fajr.Iqama, out var fajrTime))
+        if (fajr is not null && TimeOnly.TryParse(fajr.Adhan, out var fajrTime))
         {
             int mins = MinutesUntil(now, fajrTime, crossesMidnight: true);
-            return ($"Fajr Iqama  {Fmt(fajrTime)}", FmtCountdown(mins));
+            return ($"Fajr Adhan  {Fmt(fajrTime)}", FmtCountdown(mins));
         }
 
         return ("Isha passed — updating", "");
