@@ -39,8 +39,6 @@ export type PcStatus = {
 	displayBrightness?: number | null;
 	sdrBrightness?: number;
 	dim?: number;
-	backgroundVolume?: number;
-	backgroundPlaying?: boolean;
 	prayerStatus?: string;
 	prayerCountdown?: string;
 };

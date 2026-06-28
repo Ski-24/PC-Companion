@@ -19,8 +19,7 @@ export abstract class BrightnessDialAction extends SingletonAction<CommandSettin
 	protected abstract readonly max: number;
 	protected abstract readonly unit: string;
 	protected abstract readonly accent: string;
-	// What the dial PUSH does. Defaults to showing the popup; subclasses can override
-	// (e.g. the background-sound dial pushes to play/pause).
+	// What the dial PUSH does. Defaults to showing the popup; subclasses can override.
 	protected readonly pushCommand: string = "--show-popup";
 	protected readonly pushLabel: string = "Show popup";
 	protected canRotate(_status?: PcStatus): boolean {
