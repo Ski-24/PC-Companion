@@ -2060,6 +2060,54 @@ public partial class PopupWindow : Window
             // falling back to the offline calculation when offline or for other countries.
             BuildSliderToggleRow("Online Times (Qatar)", y, AppSettings.Current.Prayer.UseOnlineTimes,
                 () => ToggleOnlineTimes()); y += 32;
+
+            // Iqama alarm: on/off toggle + volume slider. The slider plays a short
+            // preview on release so you can hear the level you picked.
+            bool iqamaOn = AppSettings.Current.Prayer.PlayIqamaSound;
+            BuildSliderToggleRow("Iqama Sound", y, iqamaOn, () => ToggleIqamaSound()); y += 32;
+
+            if (iqamaOn)
+            {
+                Add(FieldLabel("Volume", y + 2));
+                int volPct = (int)Math.Round(AppSettings.Current.Prayer.IqamaVolume * 100);
+                var volLabel = new TextBlock
+                {
+                    Text          = $"{volPct}%",
+                    FontFamily    = new FontFamily("Segoe UI"),
+                    FontSize      = 12,
+                    FontWeight    = FontWeights.Bold,
+                    Width         = 40,
+                    TextAlignment = TextAlignment.Right,
+                };
+                volLabel.SetResourceReference(ForegroundProperty, "TextBrush");
+                Canvas.SetLeft(volLabel, 360);
+                Canvas.SetTop(volLabel, y + 2);
+
+                var volSlider = new Slider
+                {
+                    Minimum = 0, Maximum = 100,
+                    Width = 230, Height = 22,
+                    Value = volPct,
+                    IsSnapToTickEnabled = true, TickFrequency = 1,
+                    Style = (Style)Application.Current.Resources["ThinSlider"],
+                };
+                Canvas.SetLeft(volSlider, 120);
+                Canvas.SetTop(volSlider, y);
+                volSlider.ValueChanged += (_, ev) => volLabel.Text = $"{(int)ev.NewValue}%";
+                // Persist + preview on release rather than on every drag tick.
+                volSlider.PreviewMouseLeftButtonUp += (_, _) =>
+                {
+                    var cfg = AppSettings.Current;
+                    cfg.Prayer.IqamaVolume = volSlider.Value / 100.0;
+                    cfg.Save();
+                    AppSettings.Invalidate();
+                    ReinitPrayerModule();
+                    IqamaSound.Play((float)(volSlider.Value / 100.0));
+                };
+                Add(volSlider);
+                Add(volLabel);
+                y += 38;
+            }
         }
         y += 6;
 
@@ -2568,6 +2616,17 @@ public partial class PopupWindow : Window
     {
         var cfg = AppSettings.Current;
         cfg.Prayer.UseOnlineTimes = !cfg.Prayer.UseOnlineTimes;
+        cfg.Save();
+        AppSettings.Invalidate();
+        ReinitPrayerModule();
+        RefreshSettingsPanel();
+    }
+
+    // Toggles the iqama alarm sound. Reinit picks the change up immediately.
+    private void ToggleIqamaSound()
+    {
+        var cfg = AppSettings.Current;
+        cfg.Prayer.PlayIqamaSound = !cfg.Prayer.PlayIqamaSound;
         cfg.Save();
         AppSettings.Invalidate();
         ReinitPrayerModule();

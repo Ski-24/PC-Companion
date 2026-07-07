@@ -11,6 +11,12 @@ class PrayerConfig
     public bool   AsrHanafi  { get; set; } = false;
     public bool   Use24Hour  { get; set; } = false;   // false = 12-hour (6:15 PM), true = 24-hour (18:15)
 
+    // Play a short alarm sound when each prayer's iqama time arrives.
+    public bool   PlayIqamaSound { get; set; } = true;
+
+    // Iqama alarm volume, 0.0 (silent) .. 1.0 (full).
+    public double IqamaVolume    { get; set; } = 0.8;
+
     // When true AND Country == "Qatar", fetch the official adhan times from the Qatar MOI
     // (Awqaf) endpoint instead of calculating them. Falls back to the offline calculation
     // when offline or for any non-Qatar country. Iqama is still adhan + the offsets below.

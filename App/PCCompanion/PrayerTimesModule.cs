@@ -8,18 +8,26 @@ class PrayerTimesModule : IDisposable
     private readonly MoiPrayerProvider?       _online;   // non-null only for Qatar + UseOnlineTimes
     private readonly TimeZoneInfo             _tz;
     private readonly bool                     _use24;
+    private readonly bool                     _iqamaSound;
+    private readonly float                    _iqamaVolume;
 
     private DispatcherTimer? _ticker;
     private PrayerDailyData? _today;
     private PrayerDailyData? _tomorrow;
+
+    // Location-local time of the previous tick. An iqama that falls in (_lastCheck, now]
+    // has just arrived → play the alarm. Starts null so nothing historical fires on launch.
+    private DateTime? _lastCheck;
 
     // Fires on the UI thread: (statusLine, countdownLine)
     public event Action<string, string>? Updated;
 
     public PrayerTimesModule(PrayerConfig cfg)
     {
-        _calc   = new CalculatedPrayerProvider(cfg);
-        _use24  = cfg.Use24Hour;
+        _calc       = new CalculatedPrayerProvider(cfg);
+        _use24       = cfg.Use24Hour;
+        _iqamaSound  = cfg.PlayIqamaSound;
+        _iqamaVolume = (float)Math.Clamp(cfg.IqamaVolume, 0.0, 1.0);
 
         // Official online times are Qatar-only; everyone else (and Qatar with online off)
         // uses the offline calculation.
@@ -82,6 +90,7 @@ class PrayerTimesModule : IDisposable
                 if (dateRolled || onlineRetry)
                     await LoadAsync();
 
+                CheckIqamaAlarm();
                 FireUpdate();
             }
             catch (Exception ex) { Logger.Log($"PrayerModule.Tick: {ex.Message}"); }
@@ -104,6 +113,30 @@ class PrayerTimesModule : IDisposable
             Updated?.Invoke(status, countdown);
         }
         catch (Exception ex) { Logger.Log($"PrayerModule.FireUpdate: {ex.Message}"); }
+    }
+
+    // Fires the alarm once per iqama, when its time crosses the gap since the last tick.
+    private void CheckIqamaAlarm()
+    {
+        var now = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, _tz);
+        var prev = _lastCheck;
+        _lastCheck = now;
+
+        if (!_iqamaSound || prev is null) return;              // skip startup / disabled
+        if (now.Date != prev.Value.Date)  return;              // date rolled — avoid spurious fire
+        if (_today?.Prayers is not { Count: > 0 }) return;
+
+        foreach (var p in _today.Prayers)
+        {
+            if (!TimeOnly.TryParse(p.Iqama, out var iqama)) continue;
+            var iqamaAt = now.Date + iqama.ToTimeSpan();
+            if (iqamaAt > prev.Value && iqamaAt <= now)
+            {
+                Logger.Log($"PrayerModule: {p.Name} iqama reached — sounding alarm.");
+                IqamaSound.Play(_iqamaVolume);
+                break;
+            }
+        }
     }
 
     private (string status, string countdown) BuildDisplay()
