@@ -75,6 +75,10 @@ class AppSettings
     public PrayerConfig Prayer            { get; set; } = new();
     public CouchModeConfig Couch          { get; set; } = new();
     public MorningModeConfig Morning      { get; set; } = new();
+
+    // Schema version for one-time settings migrations (see Migrate()). Files written before
+    // this existed deserialize to 0, which triggers whatever migrations they haven't had.
+    public int SettingsVersion            { get; set; }
     public List<CardConfig> Cards { get; set; } = new()
     {
         new CardConfig { Id = "Gopher",  Visible = true  },
@@ -86,6 +90,10 @@ class AppSettings
     private static readonly string _path = Path.Combine(AppPaths.Config, "settings.json");
     private static AppSettings? _cache;
 
+    // Bump when adding a migration in Migrate(). Fresh installs are stamped with this so
+    // they never re-run past migrations.
+    private const int CurrentSettingsVersion = 1;
+
     public static AppSettings Current => _cache ??= Load();
     public static void Invalidate() => _cache = null;
 
@@ -96,11 +104,38 @@ class AppSettings
             if (File.Exists(_path))
             {
                 var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path));
-                if (s is not null) return s;
+                if (s is not null)
+                {
+                    if (s.Migrate()) s.Save();   // persist any one-time migrations
+                    return s;
+                }
             }
         }
         catch (Exception ex) { Logger.Log($"Settings load: {ex.Message}"); }
-        return new AppSettings();
+        return new AppSettings { SettingsVersion = CurrentSettingsVersion };
+    }
+
+    // One-time, version-gated migrations for an existing settings file. Returns true if
+    // anything changed so the caller can persist it. Keep each block idempotent.
+    private bool Migrate()
+    {
+        bool changed = false;
+
+        // v1: the iqama alarm sound shipped enabled-by-default (v1.0.13) and startled people
+        // on update. Make it opt-in — silence it once for anyone upgrading. They can turn it
+        // back on in Settings → Prayer.
+        if (SettingsVersion < 1)
+        {
+            Prayer.PlayIqamaSound = false;
+            changed = true;
+        }
+
+        if (SettingsVersion < CurrentSettingsVersion)
+        {
+            SettingsVersion = CurrentSettingsVersion;
+            changed = true;
+        }
+        return changed;
     }
 
     public void Save()

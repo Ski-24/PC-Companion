@@ -40,8 +40,6 @@ static class HdrSliderService
     /// <summary>Sets SDR content brightness 1.0–6.0 for all monitors. Returns false if not supported.</summary>
     public static bool Set(double value)
     {
-        // TEMP diagnostic: marks every actual SDR-boost write regardless of caller.
-        Logger.Log($"DIAG-ACTUALWRITE HdrSliderService.Set value={value:F1} thread={Environment.CurrentManagedThreadId}");
         if (!TryInit() || _fn is null) return false;
         try
         {

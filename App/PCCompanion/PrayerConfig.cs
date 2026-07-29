@@ -11,8 +11,11 @@ class PrayerConfig
     public bool   AsrHanafi  { get; set; } = false;
     public bool   Use24Hour  { get; set; } = false;   // false = 12-hour (6:15 PM), true = 24-hour (18:15)
 
-    // Play a short alarm sound when each prayer's iqama time arrives.
-    public bool   PlayIqamaSound { get; set; } = true;
+    // Play a short alarm sound when each prayer's iqama time arrives. Opt-in (off by
+    // default): the sound firing unattended startled people, so it's disabled unless the
+    // user turns it on in Settings → Prayer. Existing users are migrated off once too
+    // (see AppSettings.Migrate / SettingsVersion 1).
+    public bool   PlayIqamaSound { get; set; } = false;
 
     // Iqama alarm volume, 0.0 (silent) .. 1.0 (full).
     public double IqamaVolume    { get; set; } = 0.8;

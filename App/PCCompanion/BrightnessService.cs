@@ -80,8 +80,6 @@ static class BrightnessService
     /// <summary>Sets brightness 0–100. Returns true if any method succeeded.</summary>
     public static bool Set(int percent)
     {
-        // TEMP diagnostic: marks every actual brightness write regardless of caller/outcome.
-        Logger.Log($"DIAG-ACTUALWRITE BrightnessService.Set percent={percent} thread={Environment.CurrentManagedThreadId}");
         return SetViaDdc(percent) || SetViaWmi(percent);
     }
 

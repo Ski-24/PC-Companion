@@ -4,9 +4,14 @@ namespace PCCompanion;
 
 static class HdrDetector
 {
-    // Uses QueryDisplayConfig + DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO
-    // to read the actual per-monitor HDR (Advanced Color) enabled state —
-    // the same flag Win+Alt+B and Settings → Display → Use HDR toggle.
+    // Reads the actual per-monitor HDR state — the same flag Win+Alt+B and
+    // Settings → Display → Use HDR toggle.
+    //
+    // Prefers DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO_2 (Win11 24H2+).
+    // The legacy ..._GET_ADVANCED_COLOR_INFO "advancedColorEnabled" bit does NOT
+    // mean HDR: it means "advanced colour is active", which Automatic Color
+    // Management (WCG) also sets. On a display with ACM on it is stuck at 1
+    // whether HDR is on or off, so it is only a fallback for older Windows.
     public static bool IsEnabled()
     {
         try
@@ -31,6 +36,28 @@ static class HdrDetector
 
             foreach (var path in paths)
             {
+                var req2 = new DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2
+                {
+                    header = new DISPLAYCONFIG_DEVICE_INFO_HEADER
+                    {
+                        type      = DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO_2,
+                        size      = (uint)Marshal.SizeOf<DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2>(),
+                        adapterId = path.targetInfo.adapterId,
+                        id        = path.targetInfo.id,
+                    }
+                };
+                int ret2 = DisplayConfigGetDeviceInfo(ref req2);
+                if (ret2 == 0)
+                {
+                    bool hdrOn = (req2.value & HDR_USER_ENABLED) != 0
+                              || req2.activeColorMode == ADVANCED_COLOR_MODE_HDR;
+                    Logger.Log($"HdrDetector(v2): value=0b{Convert.ToString(req2.value,2).PadLeft(8,'0')} " +
+                               $"hdrEn={((req2.value>>5)&1)} wcgEn={((req2.value>>7)&1)} mode={req2.activeColorMode} → {hdrOn}");
+                    if (hdrOn) return true;
+                    continue;   // this path answered authoritatively: HDR is off here
+                }
+
+                // Fallback: pre-24H2 Windows, where advancedColorEnabled == HDR.
                 var req = new DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO
                 {
                     header = new DISPLAYCONFIG_DEVICE_INFO_HEADER
@@ -73,6 +100,25 @@ static class HdrDetector
 
             foreach (var path in paths)
             {
+                var req2 = new DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2
+                {
+                    header = new DISPLAYCONFIG_DEVICE_INFO_HEADER
+                    {
+                        type      = DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO_2,
+                        size      = (uint)Marshal.SizeOf<DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2>(),
+                        adapterId = path.targetInfo.adapterId,
+                        id        = path.targetInfo.id,
+                    }
+                };
+                if (DisplayConfigGetDeviceInfo(ref req2) == 0)
+                {
+                    bool supported = (req2.value & HDR_SUPPORTED) != 0;
+                    bool enabled   = (req2.value & HDR_USER_ENABLED) != 0
+                                  || req2.activeColorMode == ADVANCED_COLOR_MODE_HDR;
+                    if (supported || enabled) return (supported, enabled);
+                    continue;
+                }
+
                 var req = new DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO
                 {
                     header = new DISPLAYCONFIG_DEVICE_INFO_HEADER
@@ -100,7 +146,14 @@ static class HdrDetector
     // ── P/Invoke ──────────────────────────────────────────────────────────────
 
     const uint QDC_ONLY_ACTIVE_PATHS = 2;
-    const int  DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO = 9;
+    const int  DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO   = 9;
+    const int  DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO_2 = 15;  // Win11 24H2+
+
+    // DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2.value bits
+    const uint HDR_SUPPORTED    = 1u << 4;   // highDynamicRangeSupported
+    const uint HDR_USER_ENABLED = 1u << 5;   // highDynamicRangeUserEnabled
+    // DISPLAYCONFIG_ADVANCED_COLOR_MODE: 0 = SDR, 1 = WCG, 2 = HDR
+    const uint ADVANCED_COLOR_MODE_HDR = 2;
 
     [DllImport("user32.dll")]
     static extern int GetDisplayConfigBufferSizes(uint flags, ref uint numPathArrayElements, ref uint numModeInfoArrayElements);
@@ -114,6 +167,9 @@ static class HdrDetector
 
     [DllImport("user32.dll")]
     static extern int DisplayConfigGetDeviceInfo(ref DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO req);
+
+    [DllImport("user32.dll")]
+    static extern int DisplayConfigGetDeviceInfo(ref DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2 req);
 
     [StructLayout(LayoutKind.Sequential)]
     struct LUID { public uint LowPart; public int HighPart; }
@@ -135,6 +191,19 @@ static class HdrDetector
         public uint value;
         public uint colorEncoding;
         public uint bitsPerColorChannel;
+    }
+
+    // value bits: 0=advancedColorSupported, 1=advancedColorActive, 2=reserved1,
+    // 3=advancedColorLimitedByPolicy, 4=highDynamicRangeSupported,
+    // 5=highDynamicRangeUserEnabled, 6=wideColorSupported, 7=wideColorUserEnabled
+    [StructLayout(LayoutKind.Sequential)]
+    struct DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO_2
+    {
+        public DISPLAYCONFIG_DEVICE_INFO_HEADER header;
+        public uint value;
+        public uint colorEncoding;
+        public uint bitsPerColorChannel;
+        public uint activeColorMode;
     }
 
     [StructLayout(LayoutKind.Sequential)]

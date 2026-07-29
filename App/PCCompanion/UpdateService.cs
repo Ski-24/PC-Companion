@@ -19,6 +19,10 @@ static class UpdateService
     private const string LatestReleaseApi =
         "https://api.github.com/repos/" + Owner + "/" + Repo + "/releases/latest";
 
+    // Human-facing releases page for a given tag (used by the in-app "What's new" popup).
+    public static string ReleasePageUrl(string tag) =>
+        $"https://github.com/{Owner}/{Repo}/releases/tag/{tag}";
+
     public enum Status { UpToDate, UpdateAvailable, Failed }
 
     public sealed record UpdateInfo(Version Version, string Tag, string DownloadUrl, long Size, string AssetName, string Notes);
@@ -173,6 +177,15 @@ static class UpdateService
             : MessageBox.Show(owner, msg, "PC Companion Update", MessageBoxButton.YesNo, MessageBoxImage.Information);
         if (ans != MessageBoxResult.Yes) return false;
 
+        return await DownloadInstallAsync(info, owner, setStatus);
+    }
+
+    // Download + install without the confirm prompt — used when the caller already got the
+    // user's go-ahead (e.g. the in-app "What's new" popup's Update button). On success the
+    // installer relaunches the app and this process exits; on failure it shows an error and
+    // returns false. `setStatus` receives progress/status text for the calling UI.
+    public static async Task<bool> DownloadInstallAsync(UpdateInfo info, Window? owner, Action<string>? setStatus)
+    {
         try
         {
             setStatus?.Invoke("Downloading… 0%");
@@ -184,7 +197,7 @@ static class UpdateService
         }
         catch (Exception ex)
         {
-            Logger.Log($"UpdateService.ConfirmDownloadInstall: {ex.Message}");
+            Logger.Log($"UpdateService.DownloadInstall: {ex.Message}");
             setStatus?.Invoke("Update failed");
             string err = "Could not download or start the update:\n\n" + ex.Message +
                          "\n\nYou can download it manually from the GitHub releases page.";

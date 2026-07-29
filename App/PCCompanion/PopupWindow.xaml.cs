@@ -224,29 +224,84 @@ public partial class PopupWindow : Window
     {
         _pendingUpdate = info;
         if (_updateDismissed) return;                 // user closed it this session — stay quiet
-        UpdateBannerText.Text = $"Update {info.Tag} available — click to install";
+        UpdateBannerText.Text = $"Update {info.Tag} available — click to see what's new";
         UpdateBanner.Visibility = Visibility.Visible;
     }
 
-    private async void OnUpdateBannerClick(object sender, MouseButtonEventArgs e)
+    // Clicking the banner opens the "What's new" popup (release notes + Update button)
+    // rather than jumping straight to the download.
+    private void OnUpdateBannerClick(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
         if (_pendingUpdate is null) return;
-        _actionInProgress = true;                     // keep the popup open during the prompt/download
+        UpdateNotesTitle.Text       = $"What's new in {_pendingUpdate.Tag}";
+        UpdateNotesText.Text        = FormatReleaseNotes(_pendingUpdate.Notes);
+        UpdateNotesInstallText.Text = "Update now";
+        UpdateNotesPopup.IsOpen     = true;
+    }
+
+    // GitHub release bodies are Markdown; render them as tidy plain text (strip heading
+    // hashes and bold markers, turn -/* into bullets) for the notes popup.
+    private static string FormatReleaseNotes(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return "This update includes fixes and improvements. See GitHub for full details.";
+
+        var sb = new System.Text.StringBuilder();
+        foreach (var line in raw.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n'))
+        {
+            var l = line.TrimEnd();
+            l = System.Text.RegularExpressions.Regex.Replace(l, @"^\s*#{1,6}\s*", "");   // headings
+            l = System.Text.RegularExpressions.Regex.Replace(l, @"^(\s*)[-*]\s+", "$1• "); // bullets
+            l = l.Replace("**", "").Replace("__", "");                                    // bold/italic
+            sb.AppendLine(l);
+        }
+        return sb.ToString().Trim();
+    }
+
+    private async void OnUpdateNotesInstall(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (_pendingUpdate is null) return;
+        _actionInProgress = true;                     // keep the popup open during the download
         try
         {
-            await UpdateService.ConfirmDownloadInstallAsync(_pendingUpdate, this,
-                s => UpdateBannerText.Text = s);
-            // On success the installer relaunches the app; if it failed/cancelled, restore the label.
-            UpdateBannerText.Text = $"Update {_pendingUpdate.Tag} available — click to install";
+            // The notes popup is the confirmation, so skip the extra Yes/No prompt.
+            await UpdateService.DownloadInstallAsync(_pendingUpdate, this,
+                s => { UpdateNotesInstallText.Text = s; UpdateBannerText.Text = s; });
+            // On success the installer relaunches the app; if it failed/cancelled, restore labels.
+            UpdateNotesInstallText.Text = "Update now";
+            UpdateBannerText.Text = $"Update {_pendingUpdate.Tag} available — click to see what's new";
         }
         finally { _actionInProgress = false; }
     }
 
+    private void OnUpdateNotesClose(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        UpdateNotesPopup.IsOpen = false;
+    }
+
+    private void OnUpdateNotesGitHub(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (_pendingUpdate is null) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName        = UpdateService.ReleasePageUrl(_pendingUpdate.Tag),
+                UseShellExecute = true,
+            });
+        }
+        catch (Exception ex) { Logger.Log($"OpenReleasePage: {ex.Message}"); }
+    }
+
     private void OnUpdateBannerDismiss(object sender, MouseButtonEventArgs e)
     {
-        e.Handled = true;                              // don't trigger the banner's install click
+        e.Handled = true;                              // don't trigger the banner's click
         _updateDismissed = true;
+        UpdateNotesPopup.IsOpen  = false;
         UpdateBanner.Visibility = Visibility.Collapsed;
     }
 
@@ -284,8 +339,10 @@ public partial class PopupWindow : Window
     // ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ CLI / Stream Deck command routing ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬
 
     // Central handler for `PCCompanion.exe --<cmd>`. Runs the SAME action the matching
-    // UI button runs (so the displayed status stays accurate), then shows the popup and
-    // (re)arms the short command auto-hide so the new state can be visually confirmed.
+    // UI button runs (so the live status.json the Stream Deck plugin reads stays accurate).
+    // Only `--show-popup` shows the window — every other command runs SILENTLY in the
+    // background with no popup flash (Stream Deck already reflects state on its own keys/dials).
+    // The action's RefreshState still runs and refreshes status.json even while hidden.
     public async Task HandleCommand(string command)
     {
         Logger.Log($"HandleCommand: {command}");
@@ -299,53 +356,39 @@ public partial class PopupWindow : Window
 
         if (TryParseCommandValue(command, "--adjust-brightness=", out double brightnessDelta))
         {
-            bool popupShown = ShowPopupForCommand();
             await ApplyBrightnessDelta(brightnessDelta);
-            if (popupShown) StartAutoHide(CommandAutoHideDelay);
             return;
         }
 
         if (TryParseCommandValue(command, "--set-brightness=", out double brightnessValue))
         {
-            bool popupShown = ShowPopupForCommand();
             await ApplyBrightnessValue(brightnessValue);
-            if (popupShown) StartAutoHide(CommandAutoHideDelay);
             return;
         }
 
         if (TryParseCommandValue(command, "--adjust-sdr=", out double sdrDelta))
         {
             if (!HdrDetector.IsEnabled()) return;
-            bool popupShown = ShowPopupForCommand();
             await ApplySdrDelta(sdrDelta);
-            if (popupShown) StartAutoHide(CommandAutoHideDelay);
             return;
         }
 
         if (TryParseCommandValue(command, "--set-sdr=", out double sdrValue))
         {
             if (!HdrDetector.IsEnabled()) return;
-            bool popupShown = ShowPopupForCommand();
             await ApplySdrValue(sdrValue);
-            if (popupShown) StartAutoHide(CommandAutoHideDelay);
             return;
         }
 
         if (TryParseCommandValue(command, "--set-dim=", out double dimValue))
         {
             if (HdrDetector.IsEnabled()) return;   // software dim is SDR-mode only
-            bool popupShown = ShowPopupForCommand();
             await ApplyDimValue(dimValue);
-            if (popupShown) StartAutoHide(CommandAutoHideDelay);
             return;
         }
 
-        // Show while the action runs (its RefreshState updates the live status), then close
-        // immediately — Stream Deck toggles minimize as soon as the change is done rather than
-        // lingering on the auto-hide timer. (The dial/value commands above keep the timer so
-        // their slider value stays visible while you turn the dial.)
-        ShowPopup();
-
+        // Toggle/switch commands run silently: perform the action, whose RefreshState
+        // refreshes the live status without ever showing the popup.
         switch (command)
         {
             case "--toggle-gopher":     DoToggleGopher();        break;
@@ -356,8 +399,6 @@ public partial class PopupWindow : Window
             case "--toggle-morning-mode": await RunMorningToggle(); break;
             default: Logger.Log($"HandleCommand: unknown command '{command}'"); break;
         }
-
-        HidePopup();
     }
 
     // ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ Auto-hide ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬
@@ -395,7 +436,7 @@ public partial class PopupWindow : Window
 
     // Never auto-hide while the user is mid-task.
     private bool CanAutoHide()
-        => !_settingsExpanded && !_editMode && !HelpPopup.IsOpen && !_actionInProgress && !PopupBorder.IsMouseOver;
+        => !_settingsExpanded && !_editMode && !HelpPopup.IsOpen && !UpdateNotesPopup.IsOpen && !_actionInProgress && !PopupBorder.IsMouseOver;
 
     // Nominal (design) window height ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â tall enough to hold the fully expanded popup.
     // The window is a transparent canvas with the visible Border bottom-aligned inside it.
@@ -430,15 +471,6 @@ public partial class PopupWindow : Window
         // (roomy displays ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ no scrollbar, no change), engages on short/scaled displays.
         RootScroller.MaxHeight = winH;
 
-        // TEMP diagnostic for the 150%-scaling anchor check ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â remove once confirmed.
-        Logger.Log($"DIAG-POS waBottom={wa.Bottom:F0} waH={wa.Height:F0} winH={winH:F0} top={Top:F0}");
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
-        {
-            double popupBottom = Top + ActualHeight; // ActualHeight should equal winH (no OS clamp)
-            Logger.Log($"DIAG-POS(after layout) winActualH={ActualHeight:F0} " +
-                       $"borderH={PopupBorder.ActualHeight:F0} popupBottom={popupBottom:F0} " +
-                       $"gapToTaskbar={wa.Bottom - popupBottom:F0}");
-        });
     }
 
     // Work area (in WPF DIPs) of the monitor under the mouse cursor ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â i.e. the monitor
@@ -472,6 +504,7 @@ public partial class PopupWindow : Window
         RemoveMouseHook();
         _autoHideTimer.Stop();
         HideHelp();
+        UpdateNotesPopup.IsOpen = false;   // don't leave the "What's new" popup floating after hide
 
         // If the popup auto-hides (OnDeactivated) while a slider is mid-drag, the
         // matching MouseUp handler never runs, leaving the capture flag stuck true ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â
@@ -496,7 +529,7 @@ public partial class PopupWindow : Window
     protected override void OnDeactivated(EventArgs e)
     {
         base.OnDeactivated(e);
-        if (_actionInProgress || _settingsExpanded || _editMode) return;
+        if (_actionInProgress || _settingsExpanded || _editMode || UpdateNotesPopup.IsOpen) return;
         HidePopupFromUser();
     }
 
@@ -599,7 +632,6 @@ public partial class PopupWindow : Window
         _actionInProgress = true;
         try
         {
-            DisplayDiag.LogWrite("SendHdrKeys", "Win+Alt+B (HDR toggle)", "DoToggleHdr", "");
             SendHdrKeys();
             await Task.Delay(700);
 
@@ -610,7 +642,6 @@ public partial class PopupWindow : Window
             {
                 double saved = ClampSdr(AppSettings.Current.SdrBrightness);
                 Logger.Log($"DoToggleHdr: HDR on ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â re-applying saved SDR brightness {saved:F1}");
-                DisplayDiag.LogWrite("HdrSliderService.Set", $"{saved:F1}", "DoToggleHdr(re-apply after HDR turned ON)", "auto-reapply");
                 await Task.Run(() => HdrSliderService.Set(saved));
             }
 
@@ -633,7 +664,6 @@ public partial class PopupWindow : Window
             var current = await Task.Run(() => AutoHdrService.GetState());
             if (current == AutoHdrService.State.Unknown) return;
 
-            DisplayDiag.LogWrite("AutoHdrService.Toggle", $"from {current}", "DoToggleAutoHdr", "");
             var error = await Task.Run(() => AutoHdrService.Toggle(current));
             if (error is not null)
                 Logger.Log($"DoToggleAutoHdr: {error}");
@@ -1353,7 +1383,6 @@ public partial class PopupWindow : Window
 
     private static async Task SetBrightnessLogged(int percent, string ctx)
     {
-        DisplayDiag.LogWrite("BrightnessService.Set", $"{percent}%", $"{ctx} scene", "scene-brightness");
         await Task.Run(() => BrightnessService.Set(percent));
     }
 
@@ -1365,7 +1394,6 @@ public partial class PopupWindow : Window
         if (st == AutoHdrService.State.Unknown) return;
         if ((st == AutoHdrService.State.On) == desired) return;
 
-        DisplayDiag.LogWrite("AutoHdrService.Toggle", $"{ctx}ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢{(desired ? "ON" : "OFF")}", "Scene SetAutoHdrState", "scene");
         await Task.Run(() => AutoHdrService.Toggle(st));
     }
 
@@ -1378,14 +1406,12 @@ public partial class PopupWindow : Window
         bool on = await Task.Run(() => HdrDetector.IsEnabled());
         if (on == desired) return;
 
-        DisplayDiag.LogWrite("SendHdrKeys", $"sceneÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢{(desired ? "ON" : "OFF")}", "Scene SetHdrState", "scene");
         SendHdrKeys();
         await Task.Delay(700);
 
         if (desired && HdrSliderService.IsSupported)
         {
             double saved = ClampSdr(AppSettings.Current.SdrBrightness);
-            DisplayDiag.LogWrite("HdrSliderService.Set", $"{saved:F1}", "Scene SetHdrState(re-apply after HDR ON)", "auto-reapply");
             await Task.Run(() => HdrSliderService.Set(saved));
         }
     }
@@ -1714,7 +1740,7 @@ public partial class PopupWindow : Window
     private void DismissIfOutside(int xPx, int yPx)
     {
         if (!IsVisible) return;
-        if (_actionInProgress || _settingsExpanded || _editMode || HelpPopup.IsOpen) return;
+        if (_actionInProgress || _settingsExpanded || _editMode || HelpPopup.IsOpen || UpdateNotesPopup.IsOpen) return;
         try
         {
             Point tl = PopupBorder.PointToScreen(new Point(0, 0));
@@ -1797,7 +1823,6 @@ public partial class PopupWindow : Window
             {
                 int pct = _pendingBrightnessSet.Value;
                 _pendingBrightnessSet = null;
-                DisplayDiag.LogWrite("BrightnessService.Set", $"{pct}%", "StreamDeck display brightness dial", "absolute");
                 await Task.Run(() => BrightnessService.Set(pct));
             }
         }
@@ -1854,7 +1879,6 @@ public partial class PopupWindow : Window
     {
         double val = ClampSdr(Math.Round(SdrSlider.Value, 1));
         Logger.Log($"CommitSdr: user-initiated, applying {val:F1}");
-        DisplayDiag.LogWrite("HdrSliderService.Set", $"{val:F1}", "CommitSdr(SDR slider release)", "wasDragging=true");
         var cfg = AppSettings.Current;
         cfg.SdrBrightness = val;
         cfg.Save();
@@ -1904,7 +1928,6 @@ public partial class PopupWindow : Window
             {
                 double val = _pendingSdrSet.Value;
                 _pendingSdrSet = null;
-                DisplayDiag.LogWrite("HdrSliderService.Set", $"{val:F1}", "StreamDeck SDR balance dial", "absolute");
                 if (HdrSliderService.IsSupported)
                     await Task.Run(() => HdrSliderService.Set(val));
             }
