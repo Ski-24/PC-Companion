@@ -13,10 +13,10 @@
 ; ============================================================================
 
 #define MyAppName        "PC Companion"
-#define MyAppVersion     "1.0.16"
+#define MyAppVersion     "1.0.17"
 #define MyAppPublisher   "Abdulla"
 #define MyAppExeName     "PCCompanion.exe"
-#define RepoRoot         "C:\PC-Control-App"
+#define RepoRoot         SourcePath + "\.."
 #define PublishDir       RepoRoot + "\publish"
 #define PluginFolderName "com.abdulla.pccompanion.sdPlugin"
 #define PluginSourceDir  RepoRoot + "\StreamDeckPlugin\" + PluginFolderName
