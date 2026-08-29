@@ -843,7 +843,6 @@ public partial class PopupWindow : Window
                 : (sdrVis == Visibility.Visible ? 100 : 70))
             : (brtVis == Visibility.Visible ? (dimShow ? 140 : 100) : 70);
         LayoutCards();
-        RaiseAboveDim();
 
         if (_brightnessCapturing)
         {
@@ -1663,16 +1662,7 @@ public partial class PopupWindow : Window
         if (!_hdrOnLast)
             DisplayCard.Height = cfg.BrightnessSliderEnabled ? (dimShow ? 140 : 100) : 70;
         LayoutCards();
-        RaiseAboveDim();
     }
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
-        int X, int Y, int cx, int cy, uint uFlags);
-    private static readonly IntPtr HWND_TOPMOST = new(-1);
-    private const uint SWP_NOMOVE     = 0x0002;
-    private const uint SWP_NOSIZE     = 0x0001;
-    private const uint SWP_NOACTIVATE = 0x0010;
 
     // ── Global click-away hook (WH_MOUSE_LL) ───────────────────────────────────────────
     // Closes the popup on a click outside it even when the window was never activated
@@ -1750,26 +1740,12 @@ public partial class PopupWindow : Window
         catch { /* layout not ready — leave the popup open */ }
     }
 
-    // The overlay and the popup are both top-most; re-assert the popup to the top of the
-    // top-most band so the control you're using never gets dimmed by its own overlay.
-    // SetWindowPos reorders in place (unlike toggling Topmost, which briefly drops the
-    // window out of the band and makes it flicker as the overlay covers it for a frame).
-    private void RaiseAboveDim()
-    {
-        if (DimOverlay.Level <= 0 || !IsVisible) return;
-        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-        if (hwnd != IntPtr.Zero)
-            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-    }
-
     private void OnDimChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (_suppressSliders) return;
         int pct = (int)Math.Round(e.NewValue);
         DimValueLabel.Text = $"{pct}%";
         DimOverlay.SetLevel(pct);
-        RaiseAboveDim();
         WriteSliderStatusJson(dim: pct);
     }
 

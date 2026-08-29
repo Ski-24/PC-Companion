@@ -1,96 +1,141 @@
 using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Interop;
-using System.Windows.Media;
 
 namespace PCCompanion;
 
 /// <summary>
-/// Software dimming: a single click-through, top-most, transparent black window that
-/// spans the whole virtual desktop (all monitors). Compositing darkness over everything
-/// lets brightness drop below the monitor's hardware backlight floor — the same trick
-/// Desktop Dimmer / ScreenDimmer use. The window lives for the app's lifetime (one
-/// shared instance) so the dim persists while the popup is closed; it is created lazily
-/// the first time the level goes above 0 and merely hidden (not destroyed) at 0.
+/// Software dimming implemented with the display gamma ramp.
+///
+/// A top-most transparent window cannot reliably dim Windows: other top-most windows
+/// move above it, and hardware/MPO video surfaces may bypass it altogether. Applying
+/// the dim at the display output stage keeps desktop, taskbar, browsers and video at
+/// one stable brightness without depending on window z-order.
 /// </summary>
 static class DimOverlay
 {
-    // Opacity at slider 100%. Capped well below 1.0 so the screen is never fully black
-    // (you can always still find the popup to raise brightness back up).
-    private const double MaxOpacity = 0.85;
+    private const double MaxDim = 0.85;
+    private static readonly object Sync = new();
+    private static readonly Dictionary<string, ushort[]> OriginalRamps =
+        new(StringComparer.OrdinalIgnoreCase);
 
-    private static Window? _win;
-    private static int _level;   // 0–100
+    private static int _level;
 
-    /// <summary>Current dim level, 0–100. 0 = overlay hidden.</summary>
+    /// <summary>Current dim level, 0–100. 0 = original display gamma.</summary>
     public static int Level => _level;
 
-    /// <summary>Sets the software dim 0–100. 0 hides the overlay.</summary>
+    /// <summary>Sets software dimming on every active monitor.</summary>
     public static void SetLevel(int percent)
     {
-        _level = Math.Clamp(percent, 0, 100);
-        if (_level <= 0)
+        lock (Sync)
         {
-            if (_win is { IsVisible: true }) _win.Hide();
-            return;
+            _level = Math.Clamp(percent, 0, 100);
+            ApplyToAllDisplays(_level);
         }
-
-        EnsureWindow();
-        PositionToVirtualScreen();
-        _win!.Opacity = _level / 100.0 * MaxOpacity;
-        if (!_win.IsVisible) _win.Show();   // ShowActivated=false → never steals focus
-        _win.Topmost = true;
     }
 
-    private static void EnsureWindow()
+    /// <summary>Restores every gamma table captured by this process.</summary>
+    public static void Reset()
     {
-        if (_win is not null) return;
-        _win = new Window
+        lock (Sync)
         {
-            WindowStyle        = WindowStyle.None,
-            AllowsTransparency = true,
-            Background         = System.Windows.Media.Brushes.Black,
-            ShowInTaskbar      = false,
-            ShowActivated      = false,
-            Topmost            = true,
-            ResizeMode         = ResizeMode.NoResize,
-            IsHitTestVisible   = false,
-            Focusable          = false,
-            Title              = "PCCompanionDim",
-            Opacity            = 0,
-        };
-        // Apply click-through / no-activate / off-Alt-Tab styles once the HWND exists.
-        _win.SourceInitialized += (_, _) => ApplyOverlayStyles(_win!);
+            _level = 0;
+            ApplyToAllDisplays(0);
+            OriginalRamps.Clear();
+        }
     }
 
-    // Covers every monitor: VirtualScreen* is already in WPF logical units, so it maps
-    // directly to Window.Left/Top/Width/Height for a system-DPI-aware app.
-    private static void PositionToVirtualScreen()
+    private static void ApplyToAllDisplays(int level)
     {
-        _win!.Left   = SystemParameters.VirtualScreenLeft;
-        _win.Top     = SystemParameters.VirtualScreenTop;
-        _win.Width   = SystemParameters.VirtualScreenWidth;
-        _win.Height  = SystemParameters.VirtualScreenHeight;
+        var activeDevices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (monitor, _, _, _) =>
+        {
+            var info = new MonitorInfoEx { cbSize = Marshal.SizeOf<MonitorInfoEx>() };
+            if (!GetMonitorInfo(monitor, ref info) || string.IsNullOrWhiteSpace(info.szDevice))
+                return true;
+
+            activeDevices.Add(info.szDevice);
+            ApplyToDisplay(info.szDevice, level);
+            return true;
+        }, IntPtr.Zero);
+
+        foreach (string device in OriginalRamps.Keys.Where(d => !activeDevices.Contains(d)).ToArray())
+            OriginalRamps.Remove(device);
     }
 
-    // ── Extended window styles ────────────────────────────────────────────────
-    const int GWL_EXSTYLE        = -20;
-    const int WS_EX_TRANSPARENT  = 0x00000020;   // click-through
-    const int WS_EX_LAYERED      = 0x00080000;
-    const int WS_EX_TOOLWINDOW   = 0x00000080;   // hide from Alt-Tab
-    const int WS_EX_NOACTIVATE   = 0x08000000;   // never take focus
-
-    [DllImport("user32.dll", SetLastError = true)]
-    static extern int GetWindowLong(IntPtr hwnd, int index);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    static extern int SetWindowLong(IntPtr hwnd, int index, int newStyle);
-
-    private static void ApplyOverlayStyles(Window w)
+    private static void ApplyToDisplay(string device, int level)
     {
-        var hwnd = new WindowInteropHelper(w).Handle;
-        int ex = GetWindowLong(hwnd, GWL_EXSTYLE);
-        ex |= WS_EX_TRANSPARENT | WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE;
-        SetWindowLong(hwnd, GWL_EXSTYLE, ex);
+        IntPtr dc = CreateDC("DISPLAY", device, null, IntPtr.Zero);
+        if (dc == IntPtr.Zero) return;
+
+        try
+        {
+            if (!OriginalRamps.TryGetValue(device, out ushort[]? original))
+            {
+                original = new ushort[3 * 256];
+                if (!GetDeviceGammaRamp(dc, original)) return;
+                OriginalRamps[device] = original;
+            }
+
+            if (level <= 0)
+            {
+                SetDeviceGammaRamp(dc, original);
+                return;
+            }
+
+            double multiplier = 1.0 - (level / 100.0 * MaxDim);
+            var dimmed = new ushort[original.Length];
+            for (int i = 0; i < original.Length; i++)
+                dimmed[i] = (ushort)Math.Clamp(
+                    (int)Math.Round(original[i] * multiplier), ushort.MinValue, ushort.MaxValue);
+
+            SetDeviceGammaRamp(dc, dimmed);
+        }
+        finally
+        {
+            DeleteDC(dc);
+        }
     }
+
+    private delegate bool MonitorEnumProc(
+        IntPtr monitor, IntPtr hdc, IntPtr monitorRect, IntPtr data);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct MonitorInfoEx
+    {
+        public int cbSize;
+        public Rect rcMonitor;
+        public Rect rcWork;
+        public uint dwFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string szDevice;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rect
+    {
+        public int left;
+        public int top;
+        public int right;
+        public int bottom;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern bool EnumDisplayMonitors(
+        IntPtr hdc, IntPtr clipRect, MonitorEnumProc callback, IntPtr data);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfoEx info);
+
+    [DllImport("gdi32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr CreateDC(
+        string driver, string device, string? output, IntPtr initData);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteDC(IntPtr dc);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool GetDeviceGammaRamp(IntPtr dc, [Out] ushort[] ramp);
+
+    [DllImport("gdi32.dll")]
+    private static extern bool SetDeviceGammaRamp(IntPtr dc, ushort[] ramp);
 }
