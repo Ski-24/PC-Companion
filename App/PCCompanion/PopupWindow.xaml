@@ -379,7 +379,7 @@
                                 ValueChanged="OnBrightnessChanged"/>
 
                         <!-- Software Dim row — revealed when brightness bottoms out at 0 (HDR off);
-                             drives display gamma to dim below the hardware backlight floor -->
+                             drives the compositor effect below the hardware backlight floor -->
                         <TextBlock x:Name="DimDimLabel"
                                    Canvas.Left="14" Canvas.Top="100"
                                    Text="Dim"

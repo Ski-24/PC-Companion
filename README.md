@@ -42,7 +42,7 @@ Every card has an in-app **( ? ) Help** button; the descriptions below mirror it
     may not *exactly* mirror the Windows Settings slider.
   - **Dim** — software dimming for going *darker than your monitor's backlight allows*. With
     HDR off, drag **Display Brightness** down to **0** and a **Dim** slider appears; it lays a
-    click-through dark overlay across **all** your monitors. Raising brightness back above 0
+    full-desktop color effect across **all** your monitors. Raising brightness back above 0
     (or turning HDR on) clears it. Great for late-night use when 0% hardware brightness is
     still too bright. (Doesn't affect fullscreen-exclusive games, which bypass the desktop.)
 

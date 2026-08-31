@@ -787,7 +787,7 @@ public partial class PopupWindow : Window
         HdrBtn.Text          = hdrOn ? "Turn Off" : "Turn On";
 
         // Software dim is an SDR-mode tool: when HDR turns on, the SDR Balance slider takes
-        // over, so drop any active overlay and reset the reveal.
+        // over, so drop any active dim effect and reset the reveal.
         _hdrOnLast = hdrOn;
         if (hdrOn)
         {
@@ -796,7 +796,7 @@ public partial class PopupWindow : Window
         }
         else
         {
-            // HDR off: the Dim row shows whenever brightness is at 0, OR an overlay is
+            // HDR off: the Dim row shows whenever brightness is at 0, OR dimming is
             // already active (e.g. set via the Stream Deck dim dial). Clearing on a
             // brightness *raise* is handled in HandleBrightnessCommitted — NOT here — so a
             // dial-set dim isn't wiped by a passive refresh.
@@ -818,7 +818,7 @@ public partial class PopupWindow : Window
         SdrSlider.Visibility          = sdrVis;
 
         // Dim row: only under the brightness slider (HDR off), and only once revealed by
-        // the brightness-at-0 gesture or while an overlay is already active.
+        // the brightness-at-0 gesture or while dimming is already active.
         bool dimShow = brtVis == Visibility.Visible && (DimOverlay.Level > 0 || _dimRevealed);
         var dimVis = dimShow ? Visibility.Visible : Visibility.Collapsed;
         DimDimLabel.Visibility   = dimVis;
@@ -1620,7 +1620,7 @@ public partial class PopupWindow : Window
         return Task.CompletedTask;
     }
 
-    // ── Software dim (overlay below the hardware brightness floor) ─────────────
+    // ── Software dim (compositor effect below the hardware brightness floor) ────
 
     // Called whenever hardware brightness is committed. At 0 the Dim slider reveals
     // immediately; above 0 any active dim is cleared (brightness is the master).
@@ -1772,7 +1772,7 @@ public partial class PopupWindow : Window
         e.Handled = true;
     }
 
-    // Stream Deck Dim dial entry point: set the software dim overlay directly, 0–100.
+    // Stream Deck Dim dial entry point: set software dimming directly, 0–100.
     private Task ApplyDimValue(double value)
     {
         int pct = Math.Clamp((int)Math.Round(value), 0, 100);

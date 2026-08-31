@@ -166,7 +166,7 @@ public partial class App
     {
         Logger.Log("PC Companion exiting.");
         _shuttingDown = true;
-        // Never leave the system-wide display gamma dimmed after the app exits.
+        // Never leave the desktop compositor color effect active after the app exits.
         DimOverlay.Reset();
         // Unblock the pipe server's WaitForConnection so the thread can exit promptly.
         try { using var c = new NamedPipeClientStream(".", PipeName, PipeDirection.Out); c.Connect(100); }
