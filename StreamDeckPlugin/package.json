@@ -1,6 +1,6 @@
 {
 	"name": "com.abdulla.pccompanion",
-	"version": "0.1.0.0",
+	"version": "0.1.0.1",
 	"description": "Control PC Companion (HDR, Auto HDR, Gopher360, audio, couch mode, popup) from Stream Deck.",
 	"type": "module",
 	"scripts": {

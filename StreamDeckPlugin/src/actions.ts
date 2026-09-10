@@ -122,7 +122,7 @@ export class DialDim extends BrightnessDialAction {
 
 	// Software dim is an SDR-mode tool (HDR uses the SDR Balance dial instead).
 	protected canRotate(status?: PcStatus): boolean {
-		return status?.hdr !== true;
+		return status?.hdr !== true && status?.displayBrightness === 0;
 	}
 
 	protected override glyphMarkup(): string {

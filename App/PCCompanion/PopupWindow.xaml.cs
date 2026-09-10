@@ -47,6 +47,7 @@ public partial class PopupWindow : Window
     private string _latestPrayerCountdown = "";
     private int? _lastBrightnessCommand;
     private DateTimeOffset _lastBrightnessCommandUtc;
+    private int? _lastKnownBrightness;
     private bool _brightnessSetInProgress;
     private int? _pendingBrightnessSet;
     private bool _sdrSetInProgress;
@@ -382,7 +383,20 @@ public partial class PopupWindow : Window
 
         if (TryParseCommandValue(command, "--set-dim=", out double dimValue))
         {
-            if (HdrDetector.IsEnabled()) return;   // software dim is SDR-mode only
+            // A zero command is always a safe reset. Positive software dimming is only
+            // valid after hardware brightness has reached its floor. Enforce that here,
+            // not just in the UI/plugin, because stale Stream Deck events and other CLI
+            // clients can otherwise activate the compositor effect unexpectedly.
+            if (dimValue > 0 && HdrDetector.IsEnabled())
+            {
+                Logger.Log("Dim command ignored: HDR is enabled");
+                return;
+            }
+            if (dimValue > 0 && _lastKnownBrightness != 0)
+            {
+                Logger.Log($"Dim command ignored: hardware brightness is {_lastKnownBrightness?.ToString() ?? "unknown"}, not 0");
+                return;
+            }
             await ApplyDimValue(dimValue);
             return;
         }
@@ -779,6 +793,7 @@ public partial class PopupWindow : Window
         {
             brt = _lastBrightnessCommand.Value;
         }
+        _lastKnownBrightness = brt >= 0 ? brt : null;
 
         RecalculateModeStatus(gopherOn, hdrOn, autoHdr, brt, cur, curDev.Name);
 
@@ -1560,6 +1575,7 @@ public partial class PopupWindow : Window
         int pct = (int)Math.Round(e.NewValue);
         _lastBrightnessCommand = pct;
         _lastBrightnessCommandUtc = DateTimeOffset.UtcNow;
+        _lastKnownBrightness = pct;
         BrightnessLabel.Text = $"{pct}%";
         WriteSliderStatusJson(displayBrightness: pct);
     }
@@ -1587,6 +1603,7 @@ public partial class PopupWindow : Window
         int pct = Math.Clamp((int)Math.Round(BrightnessSlider.Value), 0, 100);
         _lastBrightnessCommand = pct;
         _lastBrightnessCommandUtc = DateTimeOffset.UtcNow;
+        _lastKnownBrightness = pct;
         WriteSliderStatusJson(displayBrightness: pct);
         QueueBrightnessSet(pct);
         HandleBrightnessCommitted(pct);
@@ -1608,6 +1625,7 @@ public partial class PopupWindow : Window
         int pct = Math.Clamp((int)Math.Round(value), 0, 100);
         _lastBrightnessCommand = pct;
         _lastBrightnessCommandUtc = DateTimeOffset.UtcNow;
+        _lastKnownBrightness = pct;
         WriteSliderStatusJson(displayBrightness: pct);
 
         _suppressSliders = true;
@@ -1776,6 +1794,11 @@ public partial class PopupWindow : Window
     private Task ApplyDimValue(double value)
     {
         int pct = Math.Clamp((int)Math.Round(value), 0, 100);
+        if (pct > 0 && (_hdrOnLast || _lastKnownBrightness != 0))
+        {
+            Logger.Log($"Positive dim rejected by safety invariant: hdr={_hdrOnLast}, brightness={_lastKnownBrightness?.ToString() ?? "unknown"}");
+            return Task.CompletedTask;
+        }
         DimOverlay.SetLevel(pct);
         UpdateDimRow();
         WriteSliderStatusJson(dim: pct);
