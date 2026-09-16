@@ -29,7 +29,10 @@ Every card has an in-app **( ? ) Help** button; the descriptions below mirror it
 
 - **Audio** — cycles the Windows default playback device through your configured outputs.
   Set **two** devices for a simple toggle, or add an optional **third** in **Settings** to
-  rotate through all three. If switching stops working, a device's name probably changed
+  rotate through all three. Disconnected or failed outputs are skipped automatically;
+  if no alternative is available, the current output is kept. Devices rejoin the cycle
+  when they become available again, without needing to change your configured slots.
+  If switching stops working, a device's name probably changed
   (driver update, reconnect, or a Windows rename) — just re-select the devices in **Settings**.
 
 - **Display** — the HDR / display card:
@@ -134,6 +137,12 @@ dotnet build App\PCCompanion\PCCompanion.csproj -c Debug
 ```
 
 Or open `App\PCCompanion\PCCompanion.csproj` in Visual Studio 2022 (17.8+) and press F5.
+
+**Run audio-cycle regression tests** (simulated endpoints; does not change Windows audio):
+
+```powershell
+dotnet run --project Tests\AudioCycleTests\AudioCycleTests.csproj -c Release
+```
 
 **Publish a standalone build** (what the installer packages — produces the self-contained,
 single-file exe plus the WPF native DLLs):

@@ -38,6 +38,7 @@ public partial class PopupWindow : Window
     private bool _sdrCapturing;
     private bool _dimCapturing;
     private bool _sceneInProgress;
+    private bool _audioSwitchInProgress;
     // Software-dim reveal: the Dim slider shows whenever hardware brightness is at 0
     // (HDR off); raising brightness back above 0 clears the dim and re-hides it.
     private bool _dimRevealed;
@@ -615,6 +616,11 @@ public partial class PopupWindow : Window
 
     private async Task DoSwitchAudio()
     {
+        if (_audioSwitchInProgress)
+        {
+            Logger.Log("DoSwitchAudio: switch already in progress — ignoring duplicate command");
+            return;
+        }
         var cfg = AppSettings.Current;
         if (AudioManager.ConfiguredSlots(cfg).Count < 2)
         {
@@ -622,6 +628,7 @@ public partial class PopupWindow : Window
             return;
         }
 
+        _audioSwitchInProgress = true;
         _actionInProgress = true;
         AudioBtn.Text = "...";
         try
@@ -637,7 +644,7 @@ public partial class PopupWindow : Window
             await Task.Delay(1500);
             RefreshState();
         }
-        finally { _actionInProgress = false; }
+        finally { _audioSwitchInProgress = false; _actionInProgress = false; }
     }
 
     private async Task DoToggleHdr()

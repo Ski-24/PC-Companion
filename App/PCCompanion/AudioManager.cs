@@ -36,32 +36,37 @@ static class AudioManager
         // Current default is none of the configured devices (e.g. a scene's audio target like
         // "A50 X Voice"): treat it as the first slot so the next switch lands on the 2nd —
         // matching what the Audio card displays (it presents the unknown case the same way).
-        int curIdx = curSlot > 0 ? slots.IndexOf(curSlot) : 0;
-        if (curIdx < 0) curIdx = 0;
+        bool attemptedSwitch = false;
+        var result = AudioCycle.TrySwitchNext(slots, curSlot, currentId,
+            n =>
+            {
+                var candidates = AudioCycle.ActiveCandidates(SlotId(s, n), SlotLabel(s, n), devices);
+                Logger.Log($"AudioManager: → '{SlotLabel(s, n)}' ({candidates.Count} active candidate(s))");
+                return candidates;
+            },
+            id =>
+            {
+                attemptedSwitch = true;
+                return TrySetDefault(id);
+            },
+            n => Logger.Log($"AudioManager: skipping unavailable/failed '{SlotLabel(s, n)}'"));
 
-        int targetSlot     = slots[(curIdx + 1) % slots.Count];
-        string targetLabel = SlotLabel(s, targetSlot);
-        string targetId    = SlotId(s, targetSlot);
-
-        // Build candidate list: saved ID first, then any active endpoint matching by normalized name
-        var candidates = new List<string>();
-        if (!string.IsNullOrEmpty(targetId)) candidates.Add(targetId);
-        foreach (var (id, name) in devices)
-            if (!candidates.Contains(id) && Norm(name) == Norm(targetLabel))
-                candidates.Add(id);
-
-        Logger.Log($"AudioManager: → '{targetLabel}' ({candidates.Count} candidate(s))");
-
-        string? workedId = null;
-        foreach (var id in candidates)
+        if (result is null)
         {
-            try { SetDefault(id); } catch (Exception ex) { Logger.Log($"  [{Trunc(id)}] threw: {ex.Message}"); continue; }
-            Thread.Sleep(120);
-            if (GetCurrentDefaultId() == id) { workedId = id; break; }
+            // A failed policy call may have changed only some audio roles. Restore the
+            // starting endpoint when no alternative worked, rather than showing an error
+            // or leaving Console/Multimedia/Communications pointing at different outputs.
+            if (attemptedSwitch && !string.IsNullOrEmpty(currentId) && devices.Any(d => d.Id == currentId))
+            {
+                if (!TrySetDefault(currentId)) Logger.Log("AudioManager: could not restore the starting endpoint");
+            }
+            Logger.Log("AudioManager: no available alternative; keeping the current output");
+            return;
         }
 
-        if (workedId == null)
-            throw new Exception($"No working endpoint found for '{targetLabel}'");
+        int targetSlot = result.Value.Slot;
+        string targetLabel = SlotLabel(s, targetSlot);
+        string workedId = result.Value.EndpointId;
 
         // Snap saved IDs to the endpoints that actually worked: the slot we came from (if we
         // matched one) gets the old default's ID, and the target slot gets the working ID.
@@ -131,7 +136,7 @@ static class AudioManager
     // Strip the "N- " USB-instance prefix Windows adds inside device name parentheses.
     // "Headphones (2- A50 X Game)" → "Headphones (A50 X Game)"
     private static string Norm(string name) =>
-        System.Text.RegularExpressions.Regex.Replace(name, @"\(\d+- ", "(");
+        AudioCycle.Normalize(name);
 
     private static string Trunc(string s) => s.Length > 36 ? s[..36] : s;
 
