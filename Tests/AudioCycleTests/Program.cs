@@ -104,6 +104,35 @@ Test("saved endpoint is preferred only when it is active", () =>
     Sequence(new[] { "replacement" }, AudioCycle.ActiveCandidates("offline", labels["fosi"], live));
 });
 
+Test("E1x2 Speakers driver rename resolves to main Playback 1/2", () =>
+{
+    List<(string Id, string Name)> live =
+    [
+        ("e12", "Playback 1/2 (2- E1x2 OTG)"),
+        ("e34", "Playback 3/4 (2- E1x2 OTG)"),
+        ("e56", "Playback 5/6 (2- E1x2 OTG)"),
+        ("e78", "Playback 7/8 (2- E1x2 OTG)"),
+    ];
+    Sequence(new[] { "e12" },
+        AudioCycle.ActiveCandidates("old-speakers", "Speakers (E1x2 OTG)", live));
+    Equal(0, AudioCycle.BestCompatibleIndex(
+        "old-speakers", "Speakers (E1x2 OTG)", live));
+});
+
+Test("E1x2 main-output compatibility never selects higher playback pairs", () =>
+{
+    Equal(-1, AudioCycle.RankCompatibleName(
+        "Speakers (E1x2 OTG)", "Playback 3/4 (2- E1x2 OTG)"));
+    Equal(-1, AudioCycle.RankCompatibleName(
+        "Speakers (E1x2 OTG)", "Playback 7/8 (2- E1x2 OTG)"));
+});
+
+Test("unrelated interfaces are never treated as compatible", () =>
+{
+    Equal(-1, AudioCycle.RankCompatibleName(
+        "Speakers (E1x2 OTG)", "Playback 1/2 (Fosi Audio K5 Pro)"));
+});
+
 Test("a failed endpoint does not prevent trying another candidate for that slot", () =>
 {
     var result = AudioCycle.TrySwitchNext(slots, 3, "speakers",

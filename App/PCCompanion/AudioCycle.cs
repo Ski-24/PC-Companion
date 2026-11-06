@@ -33,10 +33,59 @@ internal static class AudioCycle
         if (!string.IsNullOrEmpty(savedId) && activeDevices.Any(d => d.Id == savedId))
             candidates.Add(savedId);
         if (!string.IsNullOrEmpty(label))
-            foreach (var (id, name) in activeDevices)
-                if (!candidates.Contains(id) && Normalize(name) == Normalize(label))
-                    candidates.Add(id);
+            foreach (var candidate in activeDevices
+                .Select((device, index) => (Id: device.Id, Index: index,
+                    Rank: RankCompatibleName(label, device.Name)))
+                .Where(candidate => candidate.Rank >= 0)
+                .OrderBy(candidate => candidate.Rank)
+                .ThenBy(candidate => candidate.Index))
+            {
+                if (!candidates.Contains(candidate.Id))
+                    candidates.Add(candidate.Id);
+            }
         return candidates;
+    }
+
+    public static int BestCompatibleIndex(string savedId, string label,
+        IReadOnlyList<(string Id, string Name)> activeDevices)
+    {
+        if (!string.IsNullOrEmpty(savedId))
+        {
+            for (int i = 0; i < activeDevices.Count; i++)
+                if (activeDevices[i].Id == savedId) return i;
+        }
+
+        int bestIndex = -1;
+        int bestRank = int.MaxValue;
+        for (int i = 0; i < activeDevices.Count; i++)
+        {
+            int rank = RankCompatibleName(label, activeDevices[i].Name);
+            if (rank >= 0 && rank < bestRank) { bestRank = rank; bestIndex = i; }
+        }
+        return bestIndex;
+    }
+
+    // 0 = the same normalized endpoint name; 1 = the same interface after its driver
+    // renamed the conventional Speakers/Headphones endpoint to Playback 1/2 (or back).
+    // Higher playback pairs are deliberately not treated as the main stereo output.
+    public static int RankCompatibleName(string savedName, string activeName)
+    {
+        string saved = Normalize(savedName);
+        string active = Normalize(activeName);
+        if (string.Equals(saved, active, StringComparison.OrdinalIgnoreCase)) return 0;
+
+        string savedFamily = DeviceFamily(saved);
+        string activeFamily = DeviceFamily(active);
+        if (savedFamily.Length == 0 ||
+            !string.Equals(savedFamily, activeFamily, StringComparison.OrdinalIgnoreCase))
+            return -1;
+
+        bool savedConventional = IsConventionalMainOutput(saved);
+        bool activeConventional = IsConventionalMainOutput(active);
+        bool savedPlayback12 = IsPlaybackPair(saved, 1, 2);
+        bool activePlayback12 = IsPlaybackPair(active, 1, 2);
+        return (savedConventional && activePlayback12) ||
+               (savedPlayback12 && activeConventional) ? 1 : -1;
     }
 
     public static Result? TrySwitchNext(IReadOnlyList<int> slots, int currentSlot,
@@ -63,4 +112,19 @@ internal static class AudioCycle
     // Windows adds this USB-instance prefix after reconnects/driver updates.
     public static string Normalize(string name) =>
         System.Text.RegularExpressions.Regex.Replace(name, @"\(\d+- ", "(");
+
+    private static string DeviceFamily(string normalizedName)
+    {
+        int open = normalizedName.LastIndexOf('(');
+        return open >= 0 && normalizedName.EndsWith(')')
+            ? normalizedName[(open + 1)..^1].Trim()
+            : "";
+    }
+
+    private static bool IsConventionalMainOutput(string normalizedName) =>
+        normalizedName.StartsWith("Speakers (", StringComparison.OrdinalIgnoreCase) ||
+        normalizedName.StartsWith("Headphones (", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPlaybackPair(string normalizedName, int left, int right) =>
+        normalizedName.StartsWith($"Playback {left}/{right} (", StringComparison.OrdinalIgnoreCase);
 }

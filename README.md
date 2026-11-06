@@ -32,6 +32,8 @@ Every card has an in-app **( ? ) Help** button; the descriptions below mirror it
   rotate through all three. Disconnected or failed outputs are skipped automatically;
   if no alternative is available, the current output is kept. Devices rejoin the cycle
   when they become available again, without needing to change your configured slots.
+  Compatible main-output driver renames are also healed automatically (for example,
+  `Speakers (E1x2 OTG)` becoming `Playback 1/2 (E1x2 OTG)`).
   If switching stops working, a device's name probably changed
   (driver update, reconnect, or a Windows rename) — just re-select the devices in **Settings**.
 

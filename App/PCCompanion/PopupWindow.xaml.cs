@@ -945,9 +945,9 @@ public partial class PopupWindow : Window
             // Which configured slot (1/2/3) is the live default, falling back to the card's
             // displayed label and finally to slot 1 (matching what the Audio card shows).
             int curSlot = AudioManager.CurrentSlot(cfg, curDev.Id, curDev.Name);
-            if (curSlot == 0 && AudioManager.Normalize(audioLabel) == AudioManager.Normalize(cfg.Device2Label)) curSlot = 2;
+            if (curSlot == 0 && AudioManager.LabelsReferToSameOutput(audioLabel, cfg.Device2Label)) curSlot = 2;
             if (curSlot == 0 && !string.IsNullOrEmpty(cfg.Device3Id) &&
-                AudioManager.Normalize(audioLabel) == AudioManager.Normalize(cfg.Device3Label)) curSlot = 3;
+                AudioManager.LabelsReferToSameOutput(audioLabel, cfg.Device3Label)) curSlot = 3;
             if (curSlot == 0) curSlot = 1;
 
             var status = new
@@ -1165,7 +1165,7 @@ public partial class PopupWindow : Window
 
         return !string.IsNullOrEmpty(targetName) &&
                !string.IsNullOrEmpty(currentAudioName) &&
-               AudioManager.Normalize(currentAudioName) == AudioManager.Normalize(targetName);
+               AudioManager.LabelsReferToSameOutput(currentAudioName, targetName);
     }
 
     private void UpdateCouchButton()   => UpdateSceneStatus(CouchModeBtn,   CouchModeStatus,
@@ -1461,7 +1461,9 @@ public partial class PopupWindow : Window
         // Index 0 = "Select" (none); real devices follow at +1, so a target can be reset.
         var names  = new List<string> { "Select" };
         names.AddRange(devices.Select(d => d.Name));
-        int found  = devices.FindIndex(d => d.Id == AppSettings.Current.Couch.TargetAudioId);
+        var couch = AppSettings.Current.Couch;
+        int found  = AudioManager.FindConfiguredDeviceIndex(
+            devices, couch.TargetAudioId, couch.TargetAudioLabel);
         int selIdx = found < 0 ? 0 : found + 1;
 
         var screenPt = anchor.PointToScreen(new Point(0, anchor.ActualHeight + 2));
@@ -1523,7 +1525,9 @@ public partial class PopupWindow : Window
         // Index 0 = "Select" (none); real devices follow at +1, so a target can be reset.
         var names  = new List<string> { "Select" };
         names.AddRange(devices.Select(d => d.Name));
-        int found  = devices.FindIndex(d => d.Id == AppSettings.Current.Morning.TargetAudioId);
+        var morning = AppSettings.Current.Morning;
+        int found  = AudioManager.FindConfiguredDeviceIndex(
+            devices, morning.TargetAudioId, morning.TargetAudioLabel);
         int selIdx = found < 0 ? 0 : found + 1;
 
         var screenPt = anchor.PointToScreen(new Point(0, anchor.ActualHeight + 2));
@@ -2785,15 +2789,11 @@ public partial class PopupWindow : Window
         _devices = AudioManager.GetRenderDevices();
         var s = AppSettings.Current;
 
-        // Keep a saved-but-currently-absent device (e.g. unplugged) selectable so closing
-        // Settings doesn't silently clear it just because it's not enumerated right now.
-        EnsureDeviceListed(s.Device1Id, s.Device1Label);
-        EnsureDeviceListed(s.Device2Id, s.Device2Label);
-        EnsureDeviceListed(s.Device3Id, s.Device3Label);
-
-        _sel1 = _devices.FindIndex(d => d.Id == s.Device1Id);
-        _sel2 = _devices.FindIndex(d => d.Id == s.Device2Id);
-        _sel3 = _devices.FindIndex(d => d.Id == s.Device3Id);
+        // Resolve stale IDs and compatible driver renames before preserving an absent row.
+        // For example, E1x2 can change from "Speakers" to its main "Playback 1/2" endpoint.
+        _sel1 = FindOrPreserveDevice(s.Device1Id, s.Device1Label);
+        _sel2 = FindOrPreserveDevice(s.Device2Id, s.Device2Label);
+        _sel3 = FindOrPreserveDevice(s.Device3Id, s.Device3Label);
 
         // No auto-select: an unset slot stays on "Select" so the Audio card shows its
         // "Set up in Settings" state until the user actually picks two devices.
@@ -2803,10 +2803,16 @@ public partial class PopupWindow : Window
         if (_dropText3 is not null) _dropText3.Text = _sel3 >= 0 ? _devices[_sel3].Name : "Select...";
     }
 
-    private void EnsureDeviceListed(string id, string label)
+    private int FindOrPreserveDevice(string id, string label)
     {
-        if (!string.IsNullOrEmpty(id) && !_devices.Any(d => d.Id == id))
-            _devices.Add((id, string.IsNullOrEmpty(label) ? id : label));
+        if (string.IsNullOrEmpty(id)) return -1;
+        int found = AudioManager.FindConfiguredDeviceIndex(_devices, id, label);
+        if (found >= 0) return found;
+
+        // Keep a genuinely absent configured device selectable so opening/closing Settings
+        // never clears it. It can rejoin the cycle when Windows reports it as active again.
+        _devices.Add((id, string.IsNullOrEmpty(label) ? id : label));
+        return _devices.Count - 1;
     }
 
     private void ShowDropdown(int deviceNum, Border anchor)

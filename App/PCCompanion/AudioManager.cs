@@ -117,20 +117,17 @@ static class AudioManager
         {
             if (currentId == SlotId(s, n)) return n;
         }
-        string cur = Norm(currentName);
-        if (cur.Length > 0)
+        if (!string.IsNullOrEmpty(currentName))
             foreach (int n in ConfiguredSlots(s))
-                if (cur == Norm(SlotLabel(s, n))) return n;
+                if (AudioCycle.RankCompatibleName(SlotLabel(s, n), currentName) >= 0) return n;
         return 0;
     }
 
-    // Exact name match first, then normalized name (strips USB "N- " prefix).
+    // Exact/renumbered name first, then a compatible main-output driver rename.
     private static (string? Id, string Name) FindByLabel(List<(string Id, string Name)> devices, string label)
     {
-        var exact = devices.FirstOrDefault(d => d.Name == label);
-        if (exact.Id != null) return exact;
-        var norm  = devices.FirstOrDefault(d => Norm(d.Name) == Norm(label));
-        return norm.Id != null ? norm : (null, "");
+        int index = AudioCycle.BestCompatibleIndex("", label, devices);
+        return index >= 0 ? devices[index] : (null, "");
     }
 
     // Strip the "N- " USB-instance prefix Windows adds inside device name parentheses.
@@ -174,6 +171,13 @@ static class AudioManager
     // Exposes the same name normalization used internally (strips the USB "N- " prefix).
     public static string Normalize(string name) => Norm(name);
 
+    // Resolves a saved endpoint after a reconnect, driver rename, or USB-instance change.
+    public static int FindConfiguredDeviceIndex(IReadOnlyList<(string Id, string Name)> devices,
+        string savedId, string label) => AudioCycle.BestCompatibleIndex(savedId, label, devices);
+
+    public static bool LabelsReferToSameOutput(string first, string second) =>
+        AudioCycle.RankCompatibleName(first, second) >= 0;
+
     public static List<(string Id, string Name)> GetRenderDevices()
     {
         var list = new List<(string, string)>();
@@ -208,15 +212,9 @@ static class AudioManager
     {
         var devices = GetRenderDevices();
 
-        // Candidate order: the saved ID first (only if still a live endpoint), then any
-        // active endpoint whose normalized name matches the saved label.
-        var candidates = new List<string>();
-        if (!string.IsNullOrEmpty(savedId) && devices.Any(d => d.Id == savedId))
-            candidates.Add(savedId);
-        if (!string.IsNullOrEmpty(label))
-            foreach (var (id, name) in devices)
-                if (!candidates.Contains(id) && Norm(name) == Norm(label))
-                    candidates.Add(id);
+        // Candidate order: live saved ID, exact/renumbered name, then a compatible
+        // main-stereo endpoint exposed under a new driver role name.
+        var candidates = AudioCycle.ActiveCandidates(savedId, label, devices);
 
         if (candidates.Count == 0)
         {
